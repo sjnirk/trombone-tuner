@@ -44,6 +44,10 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 [hidden] { display: none !important; }
+.ghdots { display: flex; gap: 8px; min-height: 18px; margin: 4px 0 8px; }
+.ghdots i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); }
+.ghdots i.ok { background: var(--ok); border-color: var(--ok); }
+.ghdots i.bad { background: var(--bad); border-color: var(--bad); }
 img { max-width: 100%; }
 body {
   background: var(--bg); color: var(--ink);
@@ -473,6 +477,22 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         </div>
         <p class="quizfb" id="rhFb" aria-live="polite"></p>
         <p class="status" id="rhStats"></p>
+      </div>
+      <div class="card">
+        <div class="row spread">
+          <h2>Naspelen op gehoor</h2>
+          <div class="seg" role="group" aria-label="Niveau"><button data-ghlvl="1">1 noot</button><button data-ghlvl="2">Interval</button><button data-ghlvl="3">Motief</button></div>
+        </div>
+        <p class="muted">De app speelt iets voor, jij speelt het na. De microfoon luistert mee. Alleen noten die je deze week al kent; geen noten in beeld, dus luister goed.</p>
+        <div class="ghdots" id="ghDots" aria-hidden="true"></div>
+        <div class="score" id="ghScore" hidden></div>
+        <div class="row">
+          <button class="primary" id="ghStart">Speel voor</button>
+          <button id="ghAgain" disabled>Nog een keer</button>
+          <button class="ghost" id="ghShow" disabled>Toon noten</button>
+        </div>
+        <p class="quizfb" id="ghFb" aria-live="polite"></p>
+        <p class="status" id="ghStats"></p>
       </div>
     </div>
   </section>
@@ -1375,7 +1395,7 @@ function renderPieces() {
 let tr = null, trLast = 0, trTimer = null;
 function trState() {
   const k = todayKey();
-  if (!tr || tr.datum !== k) { const t = log[k]?.trainer || {}; tr = { datum: k, sec: t.sec || 0, noten: (t.noten || [0, 0]).slice(), ritme: (t.ritme || [0, 0]).slice() }; }
+  if (!tr || tr.datum !== k) { const t = log[k]?.trainer || {}; tr = { datum: k, sec: t.sec || 0, noten: (t.noten || [0, 0]).slice(), ritme: (t.ritme || [0, 0]).slice(), gehoor: (t.gehoor || [0, 0]).slice() }; }
   return tr;
 }
 function trainerRecord(kind, ok) {
@@ -1386,7 +1406,7 @@ function trainerRecord(kind, ok) {
   clearTimeout(trTimer); trTimer = setTimeout(flushTrainer, 1500);
 }
 function flushTrainer() {
-  const s = trState(), patch = { trainer: { sec: Math.round(s.sec), noten: s.noten, ritme: s.ritme } };
+  const s = trState(), patch = { trainer: { sec: Math.round(s.sec), noten: s.noten, ritme: s.ritme, gehoor: s.gehoor } };
   if (s.sec >= 300 && !log[todayKey()]?.noten) patch.noten = true;
   saveToday(patch);
 }
@@ -1398,6 +1418,7 @@ function renderTrainerHead() {
   $("trWeekNote").textContent = LEERLIJN[weekIdx()].noten;
   $("quizStats").textContent = "Vandaag " + s.noten[0] + " van " + s.noten[1] + " goed" + (quiz.reeks > 2 ? " · reeks van " + quiz.reeks : "");
   $("rhStats").textContent = "Vandaag " + s.ritme[0] + " van " + s.ritme[1] + " ritmes strak";
+  $("ghStats").textContent = "Vandaag " + s.gehoor[0] + " van " + s.gehoor[1] + " goed nagespeeld" + (gh.reeks > 2 ? " · reeks van " + gh.reeks : "");
 }
 
 /* ===== NOTEN LEZEN ===== */
@@ -1531,6 +1552,7 @@ function renderTrainer() {
   document.querySelectorAll("[data-qmode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.qmode === quiz.mode)));
   if (!quiz.cur) nextQuestion(); else drawQuizNote();
   if (!rh.pat) newRhythm(); else drawRhythm();
+  renderGehoor();
   renderTrainerHead();
 }
 
@@ -2351,6 +2373,104 @@ tuner.onTimed((r, t) => {
     $("tuSummary").append(p);
   }
 });
+
+/* ===== GEHOOR: NASPELEN (#24) =====
+   De app speelt 1 noot, een interval of een kort motief uit de noten van deze week. Jij speelt het na;
+   de tuner luistert (vaste noten van ≥0,3 s via tuner.onNote). Tijdens het voorspelen staat de tuner
+   op pauze, zodat de speaker niet als jouw noot telt. */
+const gh = { lvl: 1, target: [], got: [], phase: "idle", timers: [], reeks: 0, shown: false };
+try { const v = +localStorage.getItem("ghlvl"); if (v >= 1 && v <= 3) gh.lvl = v; } catch (e) {}
+function ghPick() {
+  const pool = notePool(weekIdx()), n = gh.lvl === 1 ? 1 : gh.lvl === 2 ? 2 : (Math.random() < 0.5 ? 3 : 4);
+  if (!pool.length) return [];
+  const pick = () => pool[Math.floor(Math.random() * pool.length)];
+  let seq, guard = 0;
+  do {
+    seq = [pick()];
+    while (seq.length < n) {
+      const last = seq[seq.length - 1], maxJump = gh.lvl === 2 ? 7 : 4;
+      const near = pool.filter(x => x.midi !== last.midi && Math.abs(x.midi - last.midi) <= maxJump);
+      seq.push(near.length ? near[Math.floor(Math.random() * near.length)] : pick());
+    }
+    guard++;
+  } while (guard < 20 && seq.map(x => x.key).join() === gh.target.map(x => x.key).join());
+  return seq;
+}
+function ghClear() { gh.timers.forEach(clearTimeout); gh.timers = []; }
+function ghDots() {
+  $("ghDots").innerHTML = gh.target.map((t, i) => {
+    const g = gh.got[i], cls = g === undefined ? "" : g === t.midi ? "ok" : "bad";
+    return '<i class="' + cls + '"></i>';
+  }).join("");
+}
+function ghPlay() {
+  ghClear(); stopVoorspelen();
+  const a = audio(), t0 = a.currentTime + 0.15, dur = gh.lvl === 1 ? 1.2 : 0.75;
+  tuner.setPaused(true); gh.phase = "play"; gh.got = []; ghDots();
+  gh.target.forEach((n, i) => brassNote(a, t0 + i * (dur + 0.12), dur, 440 * Math.pow(2, (n.midi - 14 - 69) / 12), 0.18));
+  const end = (0.15 + gh.target.length * (dur + 0.12)) * 1000 + 250;
+  $("ghFb").className = "quizfb"; $("ghFb").textContent = "Luister…";
+  $("ghAgain").disabled = true;
+  gh.timers.push(setTimeout(() => {
+    tuner.setPaused(false); gh.phase = "listen"; $("ghAgain").disabled = false; $("ghShow").disabled = gh.shown;
+    $("ghFb").textContent = gh.target.length === 1 ? "Speel de noot na." : "Speel de " + gh.target.length + " noten na, los aangestoten.";
+    gh.timers.push(setTimeout(() => { if (gh.phase === "listen" && !gh.got.length) $("ghFb").textContent = "Ik hoor nog niets. Begin bij een noot die je kent en zoek dan op het gehoor: hoger of lager?"; }, 12000));
+  }, end));
+}
+async function ghStart() {
+  if (gh.phase === "listen" && gh.got.length === 0 && gh.target.length) { ghPlay(); return; }
+  audio();
+  if (!tuner.running()) {
+    $("ghFb").textContent = "Microfoon starten…";
+    await tuner.start();
+    if (!tuner.running()) { $("ghFb").className = "quizfb badtxt"; $("ghFb").textContent = "Zonder microfoon kan ik niet meeluisteren. Sta de microfoon toe en probeer opnieuw."; return; }
+  }
+  gh.target = ghPick(); gh.shown = false; $("ghScore").hidden = true; $("ghStart").textContent = "Volgende";
+  ghPlay();
+}
+function ghNote(written) {
+  if (gh.phase !== "listen") return;
+  const i = gh.got.length, want = gh.target[i];
+  if (!want) return;
+  /* Een herhaling van de vorige noot (lang aangehouden, even weggevallen) telt niet dubbel. */
+  if (i > 0 && written === gh.got[i - 1] && written !== want.midi) return;
+  gh.got.push(written); ghDots();
+  const wrong = written !== want.midi;
+  if (wrong || gh.got.length === gh.target.length) ghDone(!wrong, written, want);
+}
+function ghDone(ok, played, want) {
+  ghClear(); gh.phase = "done";
+  const pool = notePool(weekIdx()), name = m => (pool.find(x => x.midi === m) || {}).naam || NAMES_NL[((m % 12) + 12) % 12];
+  const fb = $("ghFb"), names = gh.target.map(t => t.naam).join(" – ");
+  if (ok) {
+    gh.reeks++; fb.className = "quizfb goodtxt";
+    fb.textContent = "Goed! " + names + "." + (gh.reeks >= 5 && gh.lvl < 3 ? " Vijf op rij: probeer het volgende niveau." : "");
+    if (gh.reeks % 5 === 0 && gh.lvl < 3) { /* zachte hint, niet automatisch omhoog */ }
+  } else {
+    gh.reeks = 0; fb.className = "quizfb badtxt";
+    const d = played - want.midi, oct = Math.abs(d) === 12;
+    fb.textContent = (oct ? "Goede noot, maar een octaaf " + (d > 0 ? "te hoog" : "te laag") + " (verkeerde boventoon)." : "Je speelde " + name(played) + ", het was " + want.naam + " (" + (d > 0 ? "lager" : "hoger") + ").") + " Hele opgave: " + names + ". Druk op Nog een keer om het opnieuw te horen.";
+  }
+  ghReveal();
+  if (!gh.shown) trainerRecord("gehoor", ok);
+  gh.shown = true; $("ghShow").disabled = true; $("ghAgain").disabled = false;
+}
+function ghReveal() {
+  const host = $("ghScore"); host.hidden = false; host.innerHTML = "";
+  const L = gh.target.length, durs = L === 1 ? ["w"] : L === 2 ? ["h", "h"] : L === 3 ? ["q", "q", "h"] : ["q", "q", "q", "q"];
+  try { drawScore(host, { n: gh.target.map((t, i) => t.key + durs[i] + (t.pos ? "@" + t.pos : "")).join(" "), pos: true, letters: true, enkel: true }); }
+  catch (e) { host.textContent = gh.target.map(t => t.naam).join(" "); }
+}
+function renderGehoor() {
+  document.querySelectorAll("[data-ghlvl]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.ghlvl === gh.lvl)));
+  ghDots();
+}
+document.querySelectorAll("[data-ghlvl]").forEach(b => b.onclick = () => { gh.lvl = +b.dataset.ghlvl; try { localStorage.setItem("ghlvl", gh.lvl); } catch (e) {} gh.reeks = 0; gh.target = []; gh.got = []; gh.phase = "idle"; ghClear(); $("ghScore").hidden = true; $("ghStart").textContent = "Speel voor"; $("ghFb").textContent = ""; renderGehoor(); });
+$("ghStart").onclick = () => ghStart();
+$("ghAgain").onclick = () => { if (gh.target.length) { if (gh.phase === "done") gh.shown = true; ghPlay(); } };
+$("ghShow").onclick = () => { gh.shown = true; ghReveal(); $("ghShow").disabled = true; };
+tuner.onNote(w => ghNote(w));
+
 tuner.onNote((written, cents) => { recordPosNote(written, cents); if (!$("tab-logboek").hidden) renderPositions(); });
 $("tuPlay").onclick = () => { const t = tuner.tk; if (t.sc) voorspelen(t.sc, t.tempo, $("tuPlay")); };
 $("tuBand").onclick = () => { const t = tuner.tk; if (!t.sc) return; tuner.restart(); if (!tuner.running()) tuner.start(); voorspelen(t.sc, t.tempo, $("tuBand"), { melody: false }); };
@@ -2605,7 +2725,7 @@ function buildReport() {
   for (let i = 27; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); days.push(dateKey(d)); }
   const L = days.map(k => log[k] || {}), played = days.filter(k => practiced(k));
   const minutes = L.reduce((a, d) => a + (d.minuten || 0), 0);
-  const tr = L.reduce((a, d) => { const t = d.trainer || {}; a.n[0] += (t.noten || [0, 0])[0]; a.n[1] += (t.noten || [0, 0])[1]; a.r[0] += (t.ritme || [0, 0])[0]; a.r[1] += (t.ritme || [0, 0])[1]; a.sec += t.sec || 0; return a; }, { n: [0, 0], r: [0, 0], sec: 0 });
+  const tr = L.reduce((a, d) => { const t = d.trainer || {}; a.n[0] += (t.noten || [0, 0])[0]; a.n[1] += (t.noten || [0, 0])[1]; a.r[0] += (t.ritme || [0, 0])[0]; a.r[1] += (t.ritme || [0, 0])[1]; a.g[0] += (t.gehoor || [0, 0])[0]; a.g[1] += (t.gehoor || [0, 0])[1]; a.sec += t.sec || 0; return a; }, { n: [0, 0], r: [0, 0], g: [0, 0], sec: 0 });
   let streak = 0; { const c = new Date(); if (!practiced(dateKey(c))) c.setDate(c.getDate() - 1); while (practiced(dateKey(c))) { streak++; c.setDate(c.getDate() - 1); } }
   const fmt = k => parseKey(k).toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
   const wk = currentWeekIdx();
@@ -2626,7 +2746,7 @@ function buildReport() {
     "<h1>Trombone-verslag</h1><p class=\"muted\">" + fmt(days[0]) + " t/m " + fmt(days[27]) + " · leerlijnweek " + (wk + 1) + " van " + LEERLIJN.length + " · gestart op " + esc(fmt(settings.start)) + " · trombone in Bes, vioolsleutel</p>" +
     "<div class=\"kpis\"><div class=\"kpi\"><b>" + played.length + "/28</b>dagen geoefend</div><div class=\"kpi\"><b>" + minutes + "</b>minuten in sessies</div><div class=\"kpi\"><b>" + streak + "</b>dagen op rij</div><div class=\"kpi\"><b>" + doneDays + "/45</b>naar het checkpoint</div></div>" +
     "<h2>Oefendagen</h2><div class=\"grid\">" + grid + "</div>" +
-    "<h2>Noten lezen en ritme</h2><p>" + Math.round(tr.sec / 60) + " minuten getraind · noten lezen " + (tr.n[1] ? Math.round(tr.n[0] / tr.n[1] * 100) + " % goed (" + tr.n[1] + " vragen)" : "nog niet") + " · ritmes strak " + (tr.r[1] ? Math.round(tr.r[0] / tr.r[1] * 100) + " % (" + tr.r[1] + " pogingen)" : "nog niet") + "</p>" +
+    "<h2>Noten lezen en ritme</h2><p>" + Math.round(tr.sec / 60) + " minuten getraind · noten lezen " + (tr.n[1] ? Math.round(tr.n[0] / tr.n[1] * 100) + " % goed (" + tr.n[1] + " vragen)" : "nog niet") + " · ritmes strak " + (tr.r[1] ? Math.round(tr.r[0] / tr.r[1] * 100) + " % (" + tr.r[1] + " pogingen)" : "nog niet") + " · naspelen op gehoor " + (tr.g[1] ? Math.round(tr.g[0] / tr.g[1] * 100) + " % (" + tr.g[1] + " opgaven)" : "nog niet") + "</p>" +
     "<h2>Stukken (doorgaanregel: 3 dagen op rij foutloos op tempo)</h2>" + (pieceRows ? "<table>" + pieceRows + "</table>" : "<p class=\"muted\">Nog geen stukken gestart.</p>") +
     "<h2>Op tempo gespeeld (toonhoogte én timing gemeten)</h2>" + (rondeRows ? "<table>" + rondeRows + "</table>" : "<p class=\"muted\">Nog niet op tempo gespeeld.</p>") +
     "<h2>Intonatie per schuifpositie</h2>" + (posRows ? "<table>" + posRows + "</table><p>" + esc(tune || (worst ? posAdvice(worst.p, worst.avg) : "Alle posities gemiddeld binnen 10 cent.")) + "</p>" : "<p class=\"muted\">Nog te weinig metingen.</p>") +
