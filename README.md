@@ -17,5 +17,7 @@ Alles gebeurt in je eigen browser. Je log, voortgang en notities staan alleen op
 
 Let op: Safari en een app op het beginscherm hebben elk hun eigen opslag. Kies er één, en maak af en toe een backup via Logboek → Backup.
 
+**Optioneel: online opslag en synchronisatie** op je eigen AWS-account, met login. Zie [`aws/README.md`](aws/README.md). Zolang `config.js` leeg is, gaat er niets online.
+
 ## Techniek
 Eén HTML-bestand zonder build. Notenschrift via VexFlow 4.2.3 (jsDelivr), toonhoogte met YIN in de browser.
