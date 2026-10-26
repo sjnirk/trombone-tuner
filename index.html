@@ -216,6 +216,8 @@ button[aria-pressed="true"]#tuPlay, .pp button[aria-pressed="true"] { background
 .tu-pcttxt { font-variant-numeric: tabular-nums; font-weight: 700; }
 #tuLoop[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); border-color: var(--brass); }
 
+#tuBand[aria-pressed="true"], #bandOn[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); border-color: var(--brass); }
+
 /* Tuner */
 .tu-note { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-height: 8rem; }
 .tu-note b { font-family: var(--font-display); font-weight: 800; font-size: clamp(5.5rem, 32vw, 8.5rem); line-height: .9; }
@@ -388,9 +390,16 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
           </div>
           <p class="status" id="tuPracticeMsg" role="status"></p>
         </details>
+        <details class="tu-practice" id="tuBandSet">
+          <summary>Band</summary>
+          <div class="row spread"><button id="bandOn" aria-pressed="true">Band aan</button><label class="row" for="bandVol">Volume <input type="range" id="bandVol" min="0" max="100" step="5" style="width:9em"></label></div>
+          <div class="check"><input type="checkbox" id="bandTimed"><label for="bandTimed">Band ook bij ‘op tempo spelen’ (werkt het best met oortjes, anders hoort de microfoon de band)</label></div>
+          <p class="status">Voorspelen = band met de melodie. Met band = alleen de band, jij speelt de melodie; de tuner volgt je mee.</p>
+        </details>
         <div class="row">
           <button class="primary" id="tuTimed" aria-pressed="false">Op tempo spelen</button>
           <button id="tuPlay" aria-pressed="false">Voorspelen</button>
+          <button id="tuBand" aria-pressed="false">Met band</button>
           <button id="tuReset">Opnieuw</button>
           <button id="tuMetro" aria-pressed="false">Metronoom</button>
           <button class="ghost" id="tuClose">Sluit stuk</button>
@@ -577,7 +586,7 @@ const LEERLIJN = [
       { tekst: ["Elke noot een hele maat. Schuif ontspannen vanuit de elleboog, pols los."],
         sc: [{ n: "G4w@1 | F#4w@2 | F4w@3 | E4w@4" }] },
       { tekst: ["Twee stijlen met dezelfde vier noten. De shuffle swingt: speel de achtsten lang-kort, als ‘doe-ba’. Het koraal speel je recht en verbonden."],
-        sc: [{ t: "Slow Shuffle · bigband, swing", n: "G4q@1 G48@1 F48@3 E4h@4 | G4q@1 F#48@2 F48@3 E4h@4 | Rq E48@4 F48@3 G4q@1 F#4q@2 | G4w@1" }, { t: "Eerste koraal · brassband, recht en legato", n: "G4h@1 F4h@3 | E4h@4 F4h@3 | G4h@1 F#4h@2 | G4w@1" }] }
+        sc: [{ t: "Slow Shuffle · bigband, swing", ak: "C | C | C | C", n: "G4q@1 G48@1 F48@3 E4h@4 | G4q@1 F#48@2 F48@3 E4h@4 | Rq E48@4 F48@3 G4q@1 F#4q@2 | G4w@1" }, { t: "Eerste koraal · brassband, recht en legato", ak: "C G7 | C G7 | C D7 | G", n: "G4h@1 F4h@3 | E4h@4 F4h@3 | G4h@1 F#4h@2 | G4w@1" }] }
     ],
     theorie: { titel: "Waarom ‘C’ klinkt als Bes", tekst: ["In de brassband is de trombone een <b>transponerend instrument</b>: je leest een C, maar er klinkt een Bes. Zo lezen alle Bes-instrumenten (kornet, bariton, euphonium) dezelfde noten met dezelfde grepen.", "De <b>vioolsleutel</b> krult om de tweede lijn: daar staat de G. Vanaf die G tel je omhoog en omlaag.", "Een trombone heeft geen kleppen. Per positie speel je een reeks <b>natuurtonen</b>: C, G en hoge C liggen allemaal in de 1e positie, je lippen kiezen welke klinkt. De schuif verlaagt die hele reeks per positie een halve toon."] },
     noten: "De notenbalk: lijnen E-G-B-D-F, vakken F-A-C-E. Klap hele en halve noten op 60." },
@@ -588,7 +597,7 @@ const LEERLIJN = [
       { tekst: ["De boog betekent legato: niet tongen, alleen je lippen verplaatsen. Langzaam.", "Daarna drie nieuwe posities."],
         sc: [{ t: "Lipslur", n: "(C4h@1 G4h@1) | (G4h@1 C4h@1)" }, { t: "Posities", n: "E4w@4 | Eb4w@5 | D4w@6" }] },
       { tekst: ["Een lage blues met de blue note E♭: swing de achtsten lang-kort, als ‘doe-ba’, en tel de rusten hardop mee. Dan een mars: elke noot kort en precies, zonder swing."],
-        sc: [{ t: "Low Down · bigband, swing", n: "C4q@1 Eb48@5 C48@1 Rh | C4q@1 Eb48@5 E48@4 G4h@1 | F4q@3 F#48@2 G48@1 Rh | E4q@4 Eb48@5 D48@6 C4h@1" }, { t: "Kleine mars · brassband, recht en kort", n: "C4q@1 C4q@1 E4q@4 G4q@1 | G4h@1 E4h@4 | F4q@3 F4q@3 D4q@6 F4q@3 | E4q@4 D4q@6 C4h@1" }] }
+        sc: [{ t: "Low Down · bigband, swing", ak: "C7 | C7 | F7 | C7", n: "C4q@1 Eb48@5 C48@1 Rh | C4q@1 Eb48@5 E48@4 G4h@1 | F4q@3 F#48@2 G48@1 Rh | E4q@4 Eb48@5 D48@6 C4h@1" }, { t: "Kleine mars · brassband, recht en kort", ak: "C | C | G7 | C", n: "C4q@1 C4q@1 E4q@4 G4q@1 | G4h@1 E4h@4 | F4q@3 F4q@3 D4q@6 F4q@3 | E4q@4 D4q@6 C4h@1" }] }
     ],
     theorie: { titel: "Maat, tel en rust", tekst: ["Een <b>4/4-maat</b> heeft vier kwartnoten. Een hele noot duurt 4 tellen, een halve 2, een kwart 1 en een achtste een halve tel.", "Rusten hebben dezelfde waarden. Een hele rust hangt onder de vierde lijn, een halve rust ligt op de middelste lijn.", "<b>Tongen</b> (‘toe’) geeft elke noot een begin. Een <b>boog</b> over noten betekent legato: alleen de eerste noot tongen, de rest verbinden. Op trombone doe je legato met je lippen of een heel zachte ‘doe’."] },
     noten: "Hulplijnen onder de balk: C en D. Klap kwartnoten en tel hardop 1 2 3 4." },
@@ -599,7 +608,7 @@ const LEERLIJN = [
       { tekst: ["Lipslurs in 1e en 2e positie."],
         sc: [{ n: "(C4h@1 G4h@1) | (G4h@1 C4h@1) | (B3h@2 F#4h@2) | (F#4h@2 B3h@2)" }] },
       { tekst: ["Eerst de toonladder, die heb je nodig voor het checkpoint. Dan je eerste echte blues: 12 maten, het schema van bijna alle jazz. Swing: speel de achtsten lang-kort, als ‘doe-ba’. Tel de rusten hardop mee."],
-        sc: [{ t: "Toonladder (klinkt Bes)", n: "C4w@1 | D4w@6 | E4w@4 | F4w@3 | G4w@1 | A4w@4 | B4w@2 | C5w@1" }, { t: "Twelve Bar Bones · bigband, swing", n: "C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | F4q@3 F48@3 Eb48@5 C4h@1 | F4q@3 F48@3 Eb48@5 C4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | G4q@1 G48@1 F48@3 E4h@4 | F4q@3 F48@3 Eb48@5 C4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4w@1" }] }
+        sc: [{ t: "Toonladder (klinkt Bes)", ak: "C | G | C | F | C | F | G | C", n: "C4w@1 | D4w@6 | E4w@4 | F4w@3 | G4w@1 | A4w@4 | B4w@2 | C5w@1" }, { t: "Twelve Bar Bones · bigband, swing", ak: "C7 | C7 | C7 | C7 | F7 | F7 | C7 | C7 | G7 | F7 | C7 | C7", n: "C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | F4q@3 F48@3 Eb48@5 C4h@1 | F4q@3 F48@3 Eb48@5 C4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | G4q@1 G48@1 F48@3 E4h@4 | F4q@3 F48@3 Eb48@5 C4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4w@1" }] }
     ],
     theorie: { titel: "De toonladder en de blues", tekst: ["Een <b>majeurtoonladder</b> heeft altijd dezelfde stappen: heel – heel – half – heel – heel – heel – half. Op C kom je zo uit zonder kruizen of mollen.", "Het <b>12-maten bluesschema</b> gebruikt drie akkoorden: I (C), IV (F) en V (G). Vier maten I, twee maten IV, twee maten I, dan V, IV, I en I. Bijna alle bigbandblues volgt dit schema.", "Je eerste blues gebruikt een riff op C en schuift voor F en G mee met het akkoord."] },
     noten: "Lees alle noten van lage C tot hoge C. Ritme: hele, halve en kwartnoten door elkaar." },
@@ -610,7 +619,7 @@ const LEERLIJN = [
       { tekst: ["Lipslurs over drie tonen."],
         sc: [{ n: "(C4h@1 G4h@1) | (C5h@1 G4h@1) | C4w@1 | (B3h@2 F#4h@2) | (B4h@2 F#4h@2) | B3w@2" }] },
       { tekst: ["Blues met hoge C en B♭, dan When the Saints. Swing: speel de achtsten lang-kort, als ‘doe-ba’. Tel de rusten hardop mee."],
-        sc: [{ t: "Up To C · bigband, swing", n: "C48@1 E48@4 G48@1 Bb48@3 C5q@1 Bb4q@3 | C48@1 E48@4 G48@1 Bb48@3 C5q@1 Bb4q@3 | F4q@3 A4q@4 Bb4q@3 A4q@4 | G4q@1 Bb4q@3 G48@1 F48@3 E4q@4 | C4w@1" }, { t: "When the Saints · traditional, recht of swing", n: "Rq C4q@1 E4q@4 F4q@3 | G4w@1 | Rq C4q@1 E4q@4 F4q@3 | G4w@1 | Rq C4q@1 E4q@4 F4q@3 | G4h@1 E4h@4 | C4h@1 E4h@4 | D4w@6 | Rq C4q@1 E4q@4 F4q@3 | G4h@1 E4h@4 | C4h@1 D4h@6 | C4w@1" }] }
+        sc: [{ t: "Up To C · bigband, swing", ak: "C7 | C7 | F7 | G7 | C7", n: "C48@1 E48@4 G48@1 Bb48@3 C5q@1 Bb4q@3 | C48@1 E48@4 G48@1 Bb48@3 C5q@1 Bb4q@3 | F4q@3 A4q@4 Bb4q@3 A4q@4 | G4q@1 Bb4q@3 G48@1 F48@3 E4q@4 | C4w@1" }, { t: "When the Saints · traditional, recht of swing", ak: "C | C | C | C | C | C | C | G7 | C | C | G7 | C", n: "Rq C4q@1 E4q@4 F4q@3 | G4w@1 | Rq C4q@1 E4q@4 F4q@3 | G4w@1 | Rq C4q@1 E4q@4 F4q@3 | G4h@1 E4h@4 | C4h@1 E4h@4 | D4w@6 | Rq C4q@1 E4q@4 F4q@3 | G4h@1 E4h@4 | C4h@1 D4h@6 | C4w@1" }] }
     ],
     theorie: { titel: "Kruis, mol en blue notes", tekst: ["Een <b>kruis ♯</b> maakt een noot een halve toon hoger (F wordt Fis), een <b>mol ♭</b> een halve toon lager (B wordt Bes, E wordt Es). Een <b>herstellingsteken ♮</b> heft dat weer op.", "Een voorteken geldt tot het einde van de maat.", "<b>Blue notes</b> zijn de verlaagde terts (Es), kwint (Fis/Ges) en septiem (Bes). Ze geven de blues zijn kleur, juist omdat ze ‘net niet’ in de majeurtoonladder passen."] },
     noten: "Kruis en mol: wat F♯ en E♭ betekenen. Ritme: rusten tellen." },
@@ -621,7 +630,7 @@ const LEERLIJN = [
       { tekst: ["Lipslurs in 1e, 2e en 3e positie."],
         sc: [{ n: "(C4h@1 G4h@1) | (B3h@2 F#4h@2) | (Bb3h@3 F4h@3) | (F4h@3 Bb3h@3)" }] },
       { tekst: ["De bluestoonladder, dan een walking line: elke kwartnoot even lang, als een contrabas.", "Daarna Amazing Grace in 3/4, de eerste maat is een opmaat van één tel. Zing het in je hoofd en verbind de noten."],
-        sc: [{ t: "Bluestoonladder", n: "C4q@1 Eb4q@5 F4q@3 F#4q@2 | G4q@1 Bb4q@3 C5h@1 | C5q@1 Bb4q@3 G4q@1 F#4q@2 | F4q@3 Eb4q@5 C4h@1" }, { t: "Walking Bones · bigband, swing", n: "C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | F4q@3 A4q@4 C5q@1 A4q@4 | F4q@3 A4q@4 C5q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | G4q@1 F4q@3 E4q@4 D4q@6 | F4q@3 A4q@4 C5q@1 A4q@4 | C4q@1 E4q@4 G4q@1 E4q@4 | C4w@1" }, { t: "Amazing Grace · brassband, 3/4, legato (vereenvoudigd)", maat: "3/4", n: "D4q@6 | G4h@1 B48@2 G48@1 | B4h@2 A4q@4 | G4h@1 E4q@4 | D4h@6 D4q@6 | G4h@1 B48@2 G48@1 | B4h@2 A4q@4 | G4h@1" }] }
+        sc: [{ t: "Bluestoonladder", ak: "C7 | C7 | C7 | C7", n: "C4q@1 Eb4q@5 F4q@3 F#4q@2 | G4q@1 Bb4q@3 C5h@1 | C5q@1 Bb4q@3 G4q@1 F#4q@2 | F4q@3 Eb4q@5 C4h@1" }, { t: "Walking Bones · bigband, swing", ak: "C7 | C7 | C7 | C7 | F7 | F7 | C7 | C7 | G7 | F7 | C7 | C7", n: "C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | F4q@3 A4q@4 C5q@1 A4q@4 | F4q@3 A4q@4 C5q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | G4q@1 F4q@3 E4q@4 D4q@6 | F4q@3 A4q@4 C5q@1 A4q@4 | C4q@1 E4q@4 G4q@1 E4q@4 | C4w@1" }, { t: "Amazing Grace · brassband, 3/4, legato (vereenvoudigd)", ak: "G | G | G | C | G | G | D | G", maat: "3/4", n: "D4q@6 | G4h@1 B48@2 G48@1 | B4h@2 A4q@4 | G4h@1 E4q@4 | D4h@6 D4q@6 | G4h@1 B48@2 G48@1 | B4h@2 A4q@4 | G4h@1" }] }
     ],
     theorie: { titel: "Bluestoonladder, 3/4 en opmaat", tekst: ["De <b>bluestoonladder</b> op C: C – Es – F – Fis – G – Bes – C. Zes noten, en elke noot klinkt goed over het hele bluesschema.", "In <b>3/4</b> tel je drie kwarten per maat: 1-2-3, met de nadruk op 1. Walsen, veel hymnes en Amazing Grace staan in 3/4.", "Een <b>opmaat</b> is een onvolledige eerste maat. Bij Amazing Grace begin je op tel 3; de laatste maat is daarom ook korter."] },
     noten: "Maatsoorten 4/4 en 3/4. Ritme: de gepunteerde noot." },
@@ -632,7 +641,7 @@ const LEERLIJN = [
       { tekst: ["Snellere lipslurs in 1e positie."],
         sc: [{ n: "(C4q@1 G4q@1 C5q@1 G4q@1) | (C4q@1 G4q@1 C5q@1 G4q@1) | C4w@1" }] },
       { tekst: ["Bluestoonladder op 72 met duidelijke tong, dan een riff die op de achterkant van de tel begint, en een koraal waarin je vooral luistert naar je klank. In de riff swing je de achtsten lang-kort; het koraal speel je recht."],
-        sc: [{ t: "Bluestoonladder", n: "C4q@1 Eb4q@5 F4q@3 F#4q@2 | G4q@1 Bb4q@3 C5h@1 | C5q@1 Bb4q@3 G4q@1 F#4q@2 | F4q@3 Eb4q@5 C4h@1" }, { t: "Offbeat · bigband, swing", n: "Rq G48@1 Bb48@3 C5q@1 G4q@1 | Bb4q@3 G48@1 F48@3 Eb4q@5 C4q@1 | Rq G48@1 Bb48@3 C5q@1 G4q@1 | F4q@3 Eb48@5 C48@1 C4h@1" }, { t: "Tweede koraal · brassband, recht en legato", n: "C4h@1 E4h@4 | G4h@1 F4h@3 | E4h@4 D4h@6 | C4w@1 | E4h@4 G4h@1 | A4h@4 G4h@1 | F4h@3 D4h@6 | C4w@1" }] }
+        sc: [{ t: "Bluestoonladder", ak: "C7 | C7 | C7 | C7", n: "C4q@1 Eb4q@5 F4q@3 F#4q@2 | G4q@1 Bb4q@3 C5h@1 | C5q@1 Bb4q@3 G4q@1 F#4q@2 | F4q@3 Eb4q@5 C4h@1" }, { t: "Offbeat · bigband, swing", ak: "C7 | C7 | C7 | F7 C7", n: "Rq G48@1 Bb48@3 C5q@1 G4q@1 | Bb4q@3 G48@1 F48@3 Eb4q@5 C4q@1 | Rq G48@1 Bb48@3 C5q@1 G4q@1 | F4q@3 Eb48@5 C48@1 C4h@1" }, { t: "Tweede koraal · brassband, recht en legato", ak: "C | C G7 | C G | C | C | F C | F G7 | C", n: "C4h@1 E4h@4 | G4h@1 F4h@3 | E4h@4 D4h@6 | C4w@1 | E4h@4 G4h@1 | A4h@4 G4h@1 | F4h@3 D4h@6 | C4w@1" }] }
     ],
     theorie: { titel: "Swing, recht en dynamiek", tekst: ["In <b>swing</b> zijn twee achtsten ongelijk: de eerste lang, de tweede kort, ongeveer als een triool van 2 + 1. Op papier staan ze gewoon als achtsten. In de <b>brassband</b> speel je ze precies gelijk.", "Een <b>syncope</b> legt de nadruk naast de tel, bijvoorbeeld een noot die op ‘en’ begint. Daar komt het opzwepende gevoel vandaan.", "<b>Dynamiek</b>: p (zacht), mp, mf, f (luid). <b>Crescendo</b> is geleidelijk luider, <b>decrescendo</b> zachter. In een koraal is dynamiek belangrijker dan snelheid."] },
     noten: "Herhalingstekens lezen. Ritme: achtste noten, tel 1-en-2-en." },
@@ -643,7 +652,7 @@ const LEERLIJN = [
       { tekst: ["Lipslurs in 1e tot en met 4e positie."],
         sc: [{ n: "(C4h@1 G4h@1) | (B3h@2 F#4h@2) | (Bb3h@3 F4h@3) | (A3h@4 E4h@4)" }] },
       { tekst: ["Toonladder en bluestoonladder op 80 uit het hoofd. Dan een blues met call-and-response: jij speelt, de rust antwoordt. Swing: speel de achtsten lang-kort, als ‘doe-ba’. Tel de rusten hardop mee."],
-        sc: [{ t: "Toonladder", n: TOONLADDER_KWART }, { t: "Call And Response · bigband, swing", n: "C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh | C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh | F4q@3 Rq Ab48@5 A48@4 C5q@1 | F4h@3 Rh | C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh | G4q@1 Rq F48@3 E48@4 D4q@6 | F4q@3 Rq Ab48@5 A48@4 C5q@1 | C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh" }] }
+        sc: [{ t: "Toonladder", ak: "C | C | F C | G C", n: TOONLADDER_KWART }, { t: "Call And Response · bigband, swing", ak: "C7 | C7 | C7 | C7 | F7 | F7 | C7 | C7 | G7 | F7 | C7 | C7", n: "C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh | C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh | F4q@3 Rq Ab48@5 A48@4 C5q@1 | F4h@3 Rh | C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh | G4q@1 Rq F48@3 E48@4 D4q@6 | F4q@3 Rq Ab48@5 A48@4 C5q@1 | C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh" }] }
     ],
     theorie: { titel: "Drieklanken en akkoordsymbolen", tekst: ["Een <b>drieklank</b> is grondtoon, terts en kwint: C – E – G. Dat zijn de noten die je in week 7 als lange tonen speelt.", "In een bigbandpartij staan vaak <b>akkoordsymbolen</b> zoals C7, F7 en G7. De 7 betekent dat er een kleine septiem bij komt (bij C7 is dat Bes).", "<b>Call-and-response</b> is een vraag en een antwoord: een frase, dan een rust of een andere groep die antwoordt. Je hoort het in blues, gospel en elke bigband."] },
     noten: "Blad lezen: lees elke dag 4 maten van een liedje dat je niet kent." },
@@ -652,7 +661,7 @@ const LEERLIJN = [
       { tekst: ["Buzzen 30 seconden.", "Lange tonen op je zwakste noot van deze week."], sc: [] },
       { tekst: ["Lipslurs naar keuze uit de vorige weken."], sc: [] },
       { tekst: ["De gewone toonladder op 80, strak met de metronoom: dat is je checkpoint.", "Dan een tune die je nog nooit hebt gezien, zonder posities. Speel hem mee met de tuner (knop Meespelen) en vink het checkpoint af als je hem in één keer haalt."],
-        sc: [{ t: "Toonladder (checkpoint)", n: TOONLADDER_KWART }, { t: "Van blad", pos: false, n: "Rq E48 G48 Bb4q A4q | G4h Eb4h | Rq C48 Eb48 F4q F#4q | G4w | Rq G48 Bb48 C5q Bb4q | G4q F4q Eb4h | Rq C48 E48 G4q E4q | C4w" }] }
+        sc: [{ t: "Toonladder (checkpoint)", ak: "C | C | F C | G C", n: TOONLADDER_KWART }, { t: "Van blad", ak: "C7 | C7 | C7 | C7 | C7 | F7 | C7 | C7", pos: false, n: "Rq E48 G48 Bb4q A4q | G4h Eb4h | Rq C48 Eb48 F4q F#4q | G4w | Rq G48 Bb48 C5q Bb4q | G4q F4q Eb4h | Rq C48 E48 G4q E4q | C4w" }] }
     ],
     theorie: { titel: "Klaar voor de band", tekst: ["Een brassband heeft drie trombones: twee tenortrombones in vioolsleutel en een <b>bastrombone</b> in bassleutel. Als beginner speel je meestal 2e trombone.", "Een bigband heeft meestal vier trombones en die lezen <b>bassleutel in C</b>. Ga je die kant op, dan leer je later ook bassleutel lezen. Dezelfde posities, andere namen op papier.", "Bij het eerste bezoek aan een band: vraag naar het opleidingsorkest, neem je eigen mondstuk mee en zeg eerlijk hoe lang je speelt."] },
     noten: "Blad lezen en ritmes klappen van een nieuw stuk." }
@@ -1658,10 +1667,11 @@ function brassNote(a, t0, dur, freq, vol) {
 function stopVoorspelen() {
   voorspeel.nodes.forEach(n => { try { n.stop(); } catch (e) {} });
   voorspeel.nodes = []; clearTimeout(voorspeel.timer);
-  if (voorspeel.btn) { voorspeel.btn.textContent = "Voorspelen"; voorspeel.btn.setAttribute("aria-pressed", "false"); }
+  if (voorspeel.btn) { voorspeel.btn.textContent = voorspeel.label || "Voorspelen"; voorspeel.btn.setAttribute("aria-pressed", "false"); }
   voorspeel.btn = null; tuner.setPaused(false);
 }
-function voorspelen(sc, tempo, btn) {
+function voorspelen(sc, tempo, btn, opts) {
+  opts = opts || {};
   const again = voorspeel.btn === btn;
   stopVoorspelen();
   if (again) return;
@@ -1674,16 +1684,121 @@ function voorspelen(sc, tempo, btn) {
   for (let i = 0; i < beats; i++) blip(t0 + i * spb, i === 0 ? 1600 : 1000, 0.04, 0.35);
   const pickup = firstBar && firstBar < beats ? firstBar : 0;
   const start = t0 + (beats - pickup) * spb;
-  notes.forEach((n, i) => {
+  if (band.on && sc.ak) scheduleBand(a, sc, start, spb, swing);
+  if (opts.melody !== false) notes.forEach((n, i) => {
     const on = map(n.t), next = i + 1 < notes.length ? map(notes[i + 1].t) : null;
     let len = (Math.min(map(n.t + n.d), next ?? Infinity) - on);
     len = n.slur ? len * 1.0 : len * 0.88;
     brassNote(a, start + on * spb, Math.max(0.08, len * spb), 440 * Math.pow(2, (n.midi - 14 - 69) / 12), 0.16);
   });
   voorspeel.btn = btn;
-  if (btn) { btn.textContent = "Stop"; btn.setAttribute("aria-pressed", "true"); }
-  tuner.setPaused(true);
+  if (btn) { voorspeel.label = btn.textContent; btn.textContent = "Stop"; btn.setAttribute("aria-pressed", "true"); }
+  if (opts.melody !== false) tuner.setPaused(true);
   voorspeel.timer = setTimeout(() => { stopVoorspelen(); if (metroWas && sess.running && sess.useMetro) metroStart(); }, ((start - a.currentTime) + map(total) * spb + 0.4) * 1000);
+}
+
+/* ===== BEGELEIDINGSBAND (#21) =====
+   Piano, bas en drums uit de akkoorden van een stuk (ak = akkoorden per maat, geschreven in Bes;
+   klinkend = 2 halve tonen lager). Stijl volgt het stuk: bigband (swing, walking bass, comping op 2 en 4),
+   mars (hoempa met kleine trom), koraal (aangehouden akkoorden) of traditioneel. */
+const AK_QUAL = { "": [0, 4, 7], m: [0, 3, 7], "7": [0, 4, 7, 10], m7: [0, 3, 7, 10], maj7: [0, 4, 7, 11], "6": [0, 4, 7, 9], dim: [0, 3, 6] };
+const band = { on: true, vol: 0.7, inTimed: false };
+try { band.on = localStorage.getItem("band") !== "uit"; band.vol = Math.max(0, Math.min(1, parseFloat(localStorage.getItem("bandvol") || "0.7"))); band.inTimed = localStorage.getItem("bandtimed") === "aan"; } catch (e) {}
+let noiseBuf = null;
+function parseChord(sym) {
+  const m = /^([A-G])(#|b)?(maj7|m7|m|7|6|dim)?$/.exec(sym.trim());
+  if (!m) return null;
+  const pc = (BIB_PC[m[1]] + (m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0) - 2 + 24) % 12;   /* klinkend */
+  return { pc, iv: AK_QUAL[m[3] || ""], minor: (m[3] || "").startsWith("m") && m[3] !== "maj7" };
+}
+function bandStyle(sc) {
+  const t = (sc.t || "") + " " + (sc.stijl || "");
+  if (/swing|bigband/i.test(t)) return "swing";
+  if (/mars/i.test(t)) return "mars";
+  if (/koraal|largo|going home|amazing|auld|legato|hymne/i.test(t)) return "koraal";
+  return "trad";
+}
+function chordSpans(sc) {
+  if (!sc.ak) return [];
+  const bars = sc.n.split("|"), aks = sc.ak.split("|"), spans = [];
+  let beat = 0;
+  bars.forEach((bar, k) => {
+    const len = bar.trim().split(/\s+/).filter(Boolean).reduce((s, tok) => { const r = REST_RX.exec(tok), m = NOTE_RX.exec(tok); return s + DUR_BEATS[r ? r[1] : m[5]]; }, 0);
+    const chords = (aks[k] || aks[aks.length - 1] || "").trim().split(/\s+/).filter(Boolean).map(parseChord).filter(Boolean);
+    const each = chords.length ? len / chords.length : len;
+    chords.forEach((c, i) => spans.push({ t: beat + i * each, d: each, c, barStart: beat, barLen: len }));
+    beat += len;
+  });
+  return spans;
+}
+/* --- klanken --- */
+function bandOut(a) { const g = a.createGain(); g.gain.value = band.vol; g.connect(a.destination); return g; }
+function bassNote(a, out, t, dur, midi, v) {
+  const o = a.createOscillator(), lp = a.createBiquadFilter(), g = a.createGain();
+  o.type = "triangle"; o.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+  lp.type = "lowpass"; lp.frequency.value = 700;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.55 * v, t + 0.015); g.gain.exponentialRampToValueAtTime(0.25 * v, t + Math.min(dur, 0.25)); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+  o.connect(lp).connect(g).connect(out); o.start(t); o.stop(t + dur + 0.05); voorspeel.nodes.push(o);
+}
+function pianoChord(a, out, t, dur, midis, v) {
+  midis.forEach(m => {
+    const f = 440 * Math.pow(2, (m - 69) / 12);
+    [["triangle", 1, 0.09], ["sine", 2, 0.03]].forEach(([type, mult, amp]) => {
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = type; o.frequency.value = f * mult;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(amp * v, t + 0.01); g.gain.exponentialRampToValueAtTime(amp * v * 0.35, t + Math.min(dur, 0.6)); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(out); o.start(t); o.stop(t + dur + 0.05); voorspeel.nodes.push(o);
+    });
+  });
+}
+function noise(a) {
+  if (!noiseBuf) { noiseBuf = a.createBuffer(1, a.sampleRate * 0.5, a.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const s = a.createBufferSource(); s.buffer = noiseBuf; return s;
+}
+function drum(a, out, t, kind, v) {
+  if (kind === "kick") {
+    const o = a.createOscillator(), g = a.createGain();
+    o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    g.gain.setValueAtTime(0.5 * v, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    o.connect(g).connect(out); o.start(t); o.stop(t + 0.2); voorspeel.nodes.push(o); return;
+  }
+  const s = noise(a), f = a.createBiquadFilter(), g = a.createGain();
+  const P = { snare: ["bandpass", 1800, 0.35, 0.12], hat: ["highpass", 7000, 0.12, 0.04], ride: ["highpass", 5000, 0.08, 0.25] }[kind];
+  f.type = P[0]; f.frequency.value = P[1];
+  g.gain.setValueAtTime(P[2] * v, t); g.gain.exponentialRampToValueAtTime(0.001, t + P[3]);
+  s.connect(f).connect(g).connect(out); s.start(t); s.stop(t + P[3] + 0.02); voorspeel.nodes.push(s);
+}
+function voicing(c) { let tones = c.iv.map(i => 52 + ((c.pc + i - 52 % 12 + 24) % 12)); return tones.sort((x, y) => x - y); }
+/* Plan de band in vanaf audiotijd t0 (= tel 0 van het stuk) op tempo spb (s per tel). */
+function scheduleBand(a, sc, t0, spb, swing) {
+  const spans = chordSpans(sc); if (!spans.length) return false;
+  const out = bandOut(a), style = bandStyle(sc), map = b => swing ? swingTime(b) : b, at = b => t0 + map(b) * spb;
+  spans.forEach((s, si) => {
+    const root = 36 + s.c.pc, next = spans[si + 1], beats = Math.max(1, Math.round(s.d));
+    const chord = voicing(s.c);
+    if (style === "koraal") { bassNote(a, out, at(s.t), s.d * spb * 0.98, root, 0.8); pianoChord(a, out, at(s.t), s.d * spb * 0.98, chord, 0.8); return; }
+    for (let k = 0; k < beats; k++) {
+      const b = s.t + k, beatInBar = Math.round(b - s.barStart);
+      if (style === "swing") {
+        const third = s.c.minor ? 3 : 4;
+        const line = [0, third, 7, next ? ((next.c.pc - s.c.pc + 12) % 12) - 1 : 9];
+        bassNote(a, out, at(b), spb * 0.9, root + (line[k % 4] < 0 ? line[k % 4] + 12 : line[k % 4]), 0.9);
+        drum(a, out, at(b), "ride", 1);
+        if (beatInBar % 2 === 1) { drum(a, out, at(b), "hat", 1); pianoChord(a, out, at(b), spb * 0.35, chord, 0.7); }
+        if (beatInBar % 2 === 1) drum(a, out, at(b + 0.5), "ride", 0.6);
+        if (beatInBar === 0) drum(a, out, at(b), "kick", 0.5);
+      } else if (s.barLen === 3 && style !== "mars") {
+        /* wals: bas op 1, akkoord op 2 en 3 */
+        if (beatInBar === 0) { bassNote(a, out, at(b), spb * 0.9, root, 0.9); drum(a, out, at(b), "kick", 0.35); }
+        else { pianoChord(a, out, at(b), spb * 0.5, chord, 0.6); drum(a, out, at(b), "hat", 0.6); }
+      } else {
+        const strong = beatInBar % 2 === 0;
+        if (strong) { bassNote(a, out, at(b), spb * 0.8, root + (beatInBar === 2 ? 7 : 0), 0.9); drum(a, out, at(b), "kick", style === "mars" ? 0.8 : 0.4); }
+        else { pianoChord(a, out, at(b), spb * (style === "mars" ? 0.3 : 0.6), chord, 0.7); drum(a, out, at(b), style === "mars" ? "snare" : "hat", style === "mars" ? 0.9 : 0.8); }
+      }
+    }
+  });
+  return true;
 }
 
 /* ===== LIVE TUNER (tabblad) =====
@@ -2006,6 +2121,7 @@ const tuner = (() => {
   }
   function timedStop(evaluate) {
     timed.timers.forEach(clearTimeout); timed.timers = []; clearInterval(timed.tick);
+    if (typeof voorspeel !== "undefined" && !voorspeel.btn) { voorspeel.nodes.forEach(n => { try { n.stop(); } catch (e) {} }); voorspeel.nodes = []; }
     const was = timed.active; timed.active = false; paused = false;
     $("tuTimed").textContent = "Op tempo spelen"; $("tuTimed").setAttribute("aria-pressed", "false");
     if (!was) return;
@@ -2032,7 +2148,8 @@ const tuner = (() => {
     const t0 = a.currentTime + 0.2, start0 = t0 + (beats - pickup) * spb;
     for (let i = 0; i < beats; i++) blip(t0 + i * spb, i === 0 ? 1600 : 1000, 0.04, 0.4);
     const endBeat = map(total), nClicks = Math.ceil(total);
-    for (let i = 0; i < nClicks; i++) { const bt = (i + (beats - pickup)) % beats; blip(start0 + i * spb, bt === 0 ? 1500 : 950, 0.03, 0.18); }
+    const withBand = band.on && band.inTimed && tk.sc.ak && scheduleBand(a, tk.sc, start0, spb, swing);
+    for (let i = 0; i < nClicks; i++) { const bt = (i + (beats - pickup)) % beats; blip(start0 + i * spb, bt === 0 ? 1500 : 950, 0.03, withBand ? 0.08 : 0.18); }
     const outLat = (a.outputLatency || a.baseLatency || 0.02) * 1000;
     const perf0 = performance.now() + (start0 - a.currentTime) * 1000 + outLat;
     /* maatnummer per noot (t.o.v. het hele stuk) */
@@ -2096,7 +2213,8 @@ const tuner = (() => {
     const bars = tk.full.sc.n.split("|");
     tk.from = Math.max(1, Math.min(tk.from, bars.length)); tk.to = Math.max(tk.from, Math.min(tk.to, bars.length));
     const sub = bars.slice(tk.from - 1, tk.to).map(b => b.trim()).join(" | ");
-    tk.sc = Object.assign({}, tk.full.sc, { n: sub }); tk.n = sub;
+    const ak = tk.full.sc.ak ? tk.full.sc.ak.split("|").slice(tk.from - 1, tk.to).map(x => x.trim()).join(" | ") : undefined;
+    tk.sc = Object.assign({}, tk.full.sc, { n: sub, ak }); tk.n = sub;
     tk.tempo = Math.max(30, Math.round(tk.full.tempo * tk.pct / 100));
     tk.seq = []; sub.split(/[\s|]+/).forEach(t => { const m = NOTE_RX.exec(t); if (m) tk.seq.push({ midi: tokMidi(m[2], m[3], m[4]) }); });
     resetPiece(); renderPractice(); renderPiece(); renderTarget(null); notify(null);
@@ -2220,6 +2338,18 @@ tuner.onTimed((r, t) => {
 });
 tuner.onNote((written, cents) => { recordPosNote(written, cents); if (!$("tab-logboek").hidden) renderPositions(); });
 $("tuPlay").onclick = () => { const t = tuner.tk; if (t.sc) voorspelen(t.sc, t.tempo, $("tuPlay")); };
+$("tuBand").onclick = () => { const t = tuner.tk; if (!t.sc) return; tuner.restart(); if (!tuner.running()) tuner.start(); voorspelen(t.sc, t.tempo, $("tuBand"), { melody: false }); };
+function renderBand() {
+  $("bandOn").setAttribute("aria-pressed", String(band.on)); $("bandOn").textContent = band.on ? "Band aan" : "Band uit";
+  $("bandVol").value = Math.round(band.vol * 100); $("bandTimed").checked = band.inTimed;
+  const has = !!(tuner.tk.sc && tuner.tk.sc.ak);
+  $("tuBand").hidden = !has || !band.on; $("tuBandSet").hidden = !has;
+}
+const saveBand = () => { try { localStorage.setItem("band", band.on ? "aan" : "uit"); localStorage.setItem("bandvol", String(band.vol)); localStorage.setItem("bandtimed", band.inTimed ? "aan" : "uit"); } catch (e) {} };
+$("bandOn").onclick = () => { band.on = !band.on; saveBand(); renderBand(); };
+$("bandVol").oninput = e => { band.vol = +e.target.value / 100; saveBand(); };
+$("bandTimed").onchange = e => { band.inTimed = e.target.checked; saveBand(); };
+tuner.onUpdate(() => renderBand());
 $("miniMic").onclick = () => {
   sessMic = !sessMic;
   try { localStorage.setItem("sessiemic", sessMic ? "aan" : "uit"); } catch (e) {}
