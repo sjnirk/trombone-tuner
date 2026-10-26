@@ -281,6 +281,15 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
 
   <!-- VANDAAG -->
   <section id="tab-vandaag" class="tabpanel" style="display:flex;flex-direction:column;gap:16px">
+    <div class="card" id="opgaveCard" hidden>
+      <span class="eyebrow">Opgave van je leraar</span>
+      <p id="opgaveText" style="margin:6px 0 10px"></p>
+      <div class="row">
+        <button id="opgaveVoor">Voorspelen</button>
+        <button id="opgaveMee">Meespelen</button>
+        <button id="opgaveKlaar">Afgerond</button>
+      </div>
+    </div>
     <div class="card">
       <div class="row spread">
         <span class="eyebrow" id="blockLabel">Blok 1 · Lange tonen</span>
@@ -533,6 +542,12 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <label class="eyebrow" for="startDate">Startdatum leerlijn</label>
         <input type="date" id="startDate">
         <p class="status" id="dbStatus">Opslag openen…</p>
+      </div>
+      <div class="card">
+        <h2>Delen met je leraar</h2>
+        <p class="muted">Een verslag van de laatste 4 weken: oefendagen, stukken en tempo's, op tempo gespeeld, intonatie per positie en je notities. Je leraar opent het in elke browser, zonder account, en kan je via een link een opgave terugsturen.</p>
+        <div class="row"><button id="repShare">Deel verslag</button></div>
+        <p class="status" id="repStatus"></p>
       </div>
       <div class="card">
         <h2>Backup</h2>
@@ -984,7 +999,7 @@ function renderLog() {
   $("notesList").innerHTML = notes.length ? "" : '<li class="muted">Nog geen notities. Schrijf er een op na je sessie.</li>';
   notes.forEach(k => { const li = document.createElement("li"); const b = document.createElement("b"); b.textContent = parseKey(k).toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short" }); li.append(b, document.createElement("br"), document.createTextNode(log[k].notitie)); $("notesList").append(li); });
 }
-function renderAll() { renderWeek(); renderToday(); renderLog(); renderPieces(); if (!$("tab-trainer").hidden) renderTrainer(); }
+function renderAll() { renderWeek(); renderOpgave(); renderToday(); renderLog(); renderPieces(); if (!$("tab-trainer").hidden) renderTrainer(); }
 
 /* ===== OPSLAG ===== */
 function setStatus(t) { $("saveStatus").textContent = t; }
@@ -1003,13 +1018,13 @@ async function saveSettings(patch) {
 }
 async function connectDb() {
   db = makeLocalDb();
-  if (!db) { $("dbStatus").textContent = "Je browser blokkeert opslag (privévenster?). De app werkt, maar onthoudt niets."; return; }
+  if (!db) { $("dbStatus").textContent = "Je browser blokkeert opslag (privévenster?). De app werkt, maar onthoudt niets."; applyPendingOpgave(); return; }
   let kept = false;
   try { kept = await navigator.storage?.persist?.(); } catch (e) {}
   $("dbStatus").textContent = "Je oefenlog staat alleen op dit toestel" + (kept ? " en wordt niet automatisch opgeruimd." : ". Maak af en toe een backup.");
   db.doc("settings/profiel").onSnapshot(s => {
-    if (s.exists) { settings = Object.assign({ start: todayKey(), scale: false, sight: false }, s.data()); renderAll(); }
-    else if (!s.metadata.fromCache) db.doc("settings/profiel").set(settings).catch(() => {});
+    if (s.exists) { settings = Object.assign({ start: todayKey(), scale: false, sight: false }, s.data()); renderAll(); applyPendingOpgave(); }
+    else if (!s.metadata.fromCache) { db.doc("settings/profiel").set(settings).catch(() => {}); applyPendingOpgave(); }
   }, () => { $("dbStatus").textContent = "Verbinding met opslag verbroken. Herlaad de pagina."; });
   db.collection("log").onSnapshot(q => {
     if (q.metadata.fromCache && !loaded.log) return;
@@ -2573,6 +2588,89 @@ $("blocks").innerHTML = BLOKKEN.map(b => '<div class="blk"><div class="bar"><i><
 fillDroneSelect();
 $("bkSave").onclick = saveBackup;
 if (cloud) { $("cloudLogin").onclick = () => cloud.login(); $("cloudLogout").onclick = () => cloud.logout(); $("cloudSync").onclick = () => syncNow(); }
+/* ===== VERSLAG VOOR DE LERAAR + OPGAVE (#26) =====
+   Een zelfstandig HTML-bestand met de laatste 28 dagen, te delen via het deelmenu. Onderaan staan
+   links waarmee een leraar een opgave terugstuurt: ?opgave=<stuk>@<tempo>. */
+const APP_URL = "https://sjnirk.github.io/trombone-tuner/";
+const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function allPieces() {
+  const out = [];
+  LEERLIJN.forEach((w, wi) => w.blokken.forEach((b, bi) => b.sc.forEach((sc, i) => out.push({ id: pieceId(wi, bi, i), w: wi, titel: shortTitle(sc.t) || BLOKKEN[bi].naam, sc, bpm: pieceTempo(pieceId(wi, bi, i), wi) }))));
+  BIB.forEach(p => out.push({ id: "bib-" + p.id, w: null, titel: p.t, sc: { t: p.t + (p.stijl === "bigband" ? " · bigband, swing" : ""), n: withPositions(p.n), maat: p.maat, ak: p.ak }, bpm: p.bpm }));
+  return out;
+}
+function findPiece(id) { return allPieces().find(p => p.id === id) || null; }
+function buildReport() {
+  const today = parseKey(todayKey()), days = [];
+  for (let i = 27; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); days.push(dateKey(d)); }
+  const L = days.map(k => log[k] || {}), played = days.filter(k => practiced(k));
+  const minutes = L.reduce((a, d) => a + (d.minuten || 0), 0);
+  const tr = L.reduce((a, d) => { const t = d.trainer || {}; a.n[0] += (t.noten || [0, 0])[0]; a.n[1] += (t.noten || [0, 0])[1]; a.r[0] += (t.ritme || [0, 0])[0]; a.r[1] += (t.ritme || [0, 0])[1]; a.sec += t.sec || 0; return a; }, { n: [0, 0], r: [0, 0], sec: 0 });
+  let streak = 0; { const c = new Date(); if (!practiced(dateKey(c))) c.setDate(c.getDate() - 1); while (practiced(dateKey(c))) { streak++; c.setDate(c.getDate() - 1); } }
+  const fmt = k => parseKey(k).toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+  const wk = currentWeekIdx();
+  const grid = days.map(k => '<i class="' + (practiced(k) ? "on" : "") + '" title="' + esc(k) + '"></i>').join("");
+  const pieces = Object.keys(voortgang).map(id => { const m = /^w(\d+)-b(\d+)-s(\d+)$/.exec(id); if (!m) return null; const w = +m[1] - 1; const st = pieceStatus(id, w); return { id, w, titel: voortgang[id].titel, st }; }).filter(Boolean).sort((a, b) => a.w - b.w);
+  const pieceRows = pieces.map(p => "<tr><td>W" + (p.w + 1) + "</td><td>" + esc(p.titel) + "</td><td>♩ = " + p.st.tempo + "</td><td>" + (p.st.beheerst ? "beheerst" : p.st.struggling ? "loopt vast (advies −10)" : p.st.gestart ? p.st.run + " van 3 dagen" : "nog niet") + "</td></tr>").join("");
+  const rondes = {}; days.forEach(k => { const r = (log[k] || {}).rondes || {}; Object.keys(r).forEach(key => { const x = rondes[key] || (rondes[key] = { t: r[key].t, best: 0, keer: 0, tempo: r[key].tempo }); x.best = Math.max(x.best, r[key].best); x.keer += r[key].keer; x.tempo = r[key].tempo || x.tempo; }); });
+  const rondeRows = Object.values(rondes).sort((a, b) => b.keer - a.keer).map(r => "<tr><td>" + esc(r.t) + "</td><td>" + r.keer + "×</td><td>beste " + r.best + " %</td><td>♩ = " + (r.tempo || "–") + "</td></tr>").join("");
+  const agg = posStats(28), posRows = [1, 2, 3, 4, 5, 6, 7].map(p => { const a = agg[p]; if (!a || a[1] < 3) return ""; const avg = Math.round(a[0] / a[1]); return "<tr><td>" + p + "e positie</td><td>" + (avg > 0 ? "+" : "") + avg + " cent</td><td>" + a[1] + " noten</td></tr>"; }).join("");
+  const tune = tuningAdvice(agg);
+  let worst = null; Object.keys(agg).forEach(p => { const a = agg[p]; if (a[1] >= 5) { const v = Math.round(a[0] / a[1]); if (Math.abs(v) > 10 && (!worst || Math.abs(v) > Math.abs(worst.avg))) worst = { p, avg: v }; } });
+  const notes = days.slice().reverse().filter(k => (log[k] || {}).notitie).slice(0, 8).map(k => "<li><b>" + fmt(k) + "</b> " + esc(log[k].notitie) + "</li>").join("");
+  const doneDays = (() => { const s = parseKey(settings.start); let n = 0; for (let i = 0; i < 60; i++) { const d = new Date(s); d.setDate(d.getDate() + i); if (practiced(dateKey(d))) n++; } return n; })();
+  const sugg = allPieces().filter(p => (p.w === wk || p.w === wk + 1) && /-b3-/.test(p.id)).slice(0, 6);
+  const links = sugg.map(p => { const slow = Math.max(40, p.bpm - 10); return "<li>" + esc(p.titel) + " (week " + (p.w + 1) + "): <a href=\"" + APP_URL + "?opgave=" + p.id + "@" + p.bpm + "\">op ♩ = " + p.bpm + "</a> · <a href=\"" + APP_URL + "?opgave=" + p.id + "@" + slow + "\">op ♩ = " + slow + "</a></li>"; }).join("");
+  const css = "body{font:15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;color:#18202C;background:#fff;max-width:720px;margin:0 auto;padding:24px 16px}h1{font-size:1.6rem;margin:0 0 4px}h2{font-size:1.1rem;margin:24px 0 8px;border-bottom:1px solid #D3D9E1;padding-bottom:4px}.muted{color:#586273}.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.kpi{border:1px solid #D3D9E1;border-radius:10px;padding:10px}.kpi b{display:block;font-size:1.5rem}.grid{display:grid;grid-template-columns:repeat(14,1fr);gap:3px;max-width:420px}.grid i{aspect-ratio:1;border-radius:3px;background:#E4E8EE}.grid i.on{background:#2E7A55}table{border-collapse:collapse;width:100%}td{padding:6px 8px;border-bottom:1px solid #ECEFF3;vertical-align:top}ul{padding-left:1.2em}a{color:#855A0F}@media print{a{color:#000}}";
+  const html = "<!doctype html><html lang=\"nl\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Trombone-verslag " + fmt(days[0]) + " – " + fmt(days[27]) + "</title><style>" + css + "</style></head><body>" +
+    "<h1>Trombone-verslag</h1><p class=\"muted\">" + fmt(days[0]) + " t/m " + fmt(days[27]) + " · leerlijnweek " + (wk + 1) + " van " + LEERLIJN.length + " · gestart op " + esc(fmt(settings.start)) + " · trombone in Bes, vioolsleutel</p>" +
+    "<div class=\"kpis\"><div class=\"kpi\"><b>" + played.length + "/28</b>dagen geoefend</div><div class=\"kpi\"><b>" + minutes + "</b>minuten in sessies</div><div class=\"kpi\"><b>" + streak + "</b>dagen op rij</div><div class=\"kpi\"><b>" + doneDays + "/45</b>naar het checkpoint</div></div>" +
+    "<h2>Oefendagen</h2><div class=\"grid\">" + grid + "</div>" +
+    "<h2>Noten lezen en ritme</h2><p>" + Math.round(tr.sec / 60) + " minuten getraind · noten lezen " + (tr.n[1] ? Math.round(tr.n[0] / tr.n[1] * 100) + " % goed (" + tr.n[1] + " vragen)" : "nog niet") + " · ritmes strak " + (tr.r[1] ? Math.round(tr.r[0] / tr.r[1] * 100) + " % (" + tr.r[1] + " pogingen)" : "nog niet") + "</p>" +
+    "<h2>Stukken (doorgaanregel: 3 dagen op rij foutloos op tempo)</h2>" + (pieceRows ? "<table>" + pieceRows + "</table>" : "<p class=\"muted\">Nog geen stukken gestart.</p>") +
+    "<h2>Op tempo gespeeld (toonhoogte én timing gemeten)</h2>" + (rondeRows ? "<table>" + rondeRows + "</table>" : "<p class=\"muted\">Nog niet op tempo gespeeld.</p>") +
+    "<h2>Intonatie per schuifpositie</h2>" + (posRows ? "<table>" + posRows + "</table><p>" + esc(tune || (worst ? posAdvice(worst.p, worst.avg) : "Alle posities gemiddeld binnen 10 cent.")) + "</p>" : "<p class=\"muted\">Nog te weinig metingen.</p>") +
+    "<h2>Checkpoint</h2><ul><li>" + (doneDays >= 45 ? "✓" : "○") + " 45 van 60 dagen geoefend (" + doneDays + ")</li><li>" + (settings.scale ? "✓" : "○") + " toonladder C–C (klinkt Bes) strak op 80</li><li>" + (settings.sight ? "✓" : "○") + " onbekend melodietje van blad</li></ul>" +
+    "<h2>Notities van de leerling</h2>" + (notes ? "<ul>" + notes + "</ul>" : "<p class=\"muted\">Geen notities.</p>") +
+    "<h2>Opgave geven</h2><p>Stuur de leerling een van deze links terug (of pas het getal na @ aan voor een ander tempo). De opgave verschijnt dan bovenaan in de app.</p><ul>" + links + "</ul>" +
+    "<p class=\"muted\">Gemaakt met Trombone Coach op " + fmt(todayKey()) + ".</p></body></html>";
+  return { html, name: "trombone-verslag-" + todayKey() + ".html" };
+}
+async function shareReport() {
+  const { html, name } = buildReport(), st = $("repStatus");
+  const file = new File([html], name, { type: "text/html" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: "Trombone-verslag" }); st.textContent = "Verslag gedeeld."; return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.append(a); a.click(); a.remove();
+  st.textContent = "Verslag bewaard als " + name + ". Stuur het naar je leraar, bijvoorbeeld per mail.";
+}
+/* --- opgave ontvangen --- */
+function receiveOpgave() {
+  const q = new URLSearchParams(location.search), raw = q.get("opgave");
+  if (!raw) return;
+  const m = /^((?:w\d+-b\d+-s\d+)|(?:bib-[a-z0-9-]{1,40}))(?:@(\d{2,3}))?$/.exec(raw);
+  history.replaceState(null, "", location.pathname);
+  if (!m || !findPiece(m[1])) return;
+  const tempo = m[2] ? Math.max(40, Math.min(200, +m[2])) : null;
+  pendingOpgave = { id: m[1], tempo, ontvangen: todayKey() };
+}
+let pendingOpgave = null;
+function applyPendingOpgave() { if (!pendingOpgave) return; const o = pendingOpgave; pendingOpgave = null; saveSettings({ opgave: o }); }
+function renderOpgave() {
+  const card = $("opgaveCard"), o = settings.opgave, p = o && findPiece(o.id);
+  card.hidden = !p; if (!p) return;
+  const tempo = o.tempo || p.bpm;
+  $("opgaveText").textContent = p.titel + (p.w !== null ? " (week " + (p.w + 1) + ")" : "") + " op ♩ = " + tempo + ". Ontvangen op " + parseKey(o.ontvangen).toLocaleDateString("nl-NL", { day: "numeric", month: "long" }) + ".";
+  $("opgaveVoor").onclick = () => voorspelen(p.sc, tempo, $("opgaveVoor"));
+  $("opgaveMee").onclick = () => tuner.openPiece(Object.assign({}, p.sc, p.w !== null ? { _meta: pieceMeta(p.w, +p.id.split("-b")[1].split("-")[0] - 1, +p.id.split("-s")[1] - 1) } : {}), p.w, p.titel, tempo, true);
+  $("opgaveKlaar").onclick = () => saveSettings({ opgave: null });
+}
+
+
+$("repShare").onclick = () => shareReport();
+receiveOpgave();
 $("bkFile").onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; loadBackup(f); };
 renderPosToggle(); renderLettersToggle(); renderMetro(); renderAll(); connectDb(); startCloud();
 (() => {
