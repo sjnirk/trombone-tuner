@@ -237,6 +237,9 @@ button[aria-pressed="true"]#tuPlay, .pp button[aria-pressed="true"] { background
 .tu-cents { text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 2.2rem; font-variant-numeric: tabular-nums; min-height: 2.4rem; }
 .tu-cents.good { color: var(--ok); } .tu-cents.mid { color: var(--warn); } .tu-cents.off { color: var(--bad); }
 .tu-hint { text-align: center; min-height: 1.5em; font-weight: 700; }
+.rein-goal { text-align: center; margin: 12px 0 4px; font-size: 1.05rem; }
+#reinIv { flex-wrap: wrap; }
+#reinCard .tu-zone { left: 45%; width: 10%; }
 .tu-target { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; min-height: 1.5em; font-weight: 700; }
 .tu-target .tg { padding: 3px 10px; border-radius: 999px; background: var(--brass-soft); color: var(--brass-ink); }
 .tu-target .ok { color: var(--ok); } .tu-target .dir { color: var(--warn); }
@@ -524,6 +527,28 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <button class="drone" id="droneBtn" aria-pressed="false">Speel stemtoon</button>
       </div>
       <p class="status">Geschreven noot in Bes. De stemtoon klinkt zoals jouw trombone hoort te klinken (A = 440 Hz).</p>
+    </div>
+    <div class="card" style="margin-top:16px" id="reinCard">
+      <h2>Zuiver tegen een bourdon</h2>
+      <p class="muted">In een band stem je op elkaar, niet op de tuner. De app houdt een grondtoon aan; jij speelt het interval erboven. De meter laat zien hoe ver je van <em>rein</em> zit, niet van A = 440. Gebruik oortjes, dan hoort de microfoon alleen jou.</p>
+      <div class="row">
+        <label class="vh" for="reinRoot">Grondtoon</label>
+        <select id="reinRoot"></select>
+        <div class="seg" role="group" aria-label="Interval" id="reinIv"></div>
+      </div>
+      <div class="rein-goal" id="reinGoal"></div>
+      <div class="tu-meter" aria-hidden="true">
+        <div class="tu-scale"><div class="tu-zone"></div></div>
+        <div class="tu-tick"></div>
+        <div class="tu-needle" id="reinNeedle"></div>
+      </div>
+      <div class="tu-labels"><span>−50 te laag</span><span>rein</span><span>te hoog +50</span></div>
+      <div class="tu-cents" id="reinCents" aria-live="polite"></div>
+      <p class="tu-hint" id="reinHint"></p>
+      <button class="primary" id="reinBtn" aria-pressed="false">Start bourdon en microfoon</button>
+      <details class="theory"><summary>Waarom een terts lager?</summary>
+        <p>Een tuner gebruikt de <b>gelijkzwevende stemming</b>: elke halve toon is precies even groot, zodat een piano in alle toonsoorten bruikbaar is. Maar twee tonen klinken pas echt samen (zonder zweving) als hun frequenties een eenvoudige verhouding hebben: kwint 3:2, grote terts 5:4. Die <b>reine</b> intervallen wijken af van de tuner: een reine grote terts is 14 cent lager, een kleine terts 16 cent hoger, een kwint 2 cent hoger. In de brassband speel je de terts van een akkoord dus bewust iets lager. Op de trombone doe je dat met de schuif: een fractie verder uit.</p>
+      </details>
     </div>
   </section>
 
@@ -2470,6 +2495,52 @@ $("ghStart").onclick = () => ghStart();
 $("ghAgain").onclick = () => { if (gh.target.length) { if (gh.phase === "done") gh.shown = true; ghPlay(); } };
 $("ghShow").onclick = () => { gh.shown = true; ghReveal(); $("ghShow").disabled = true; };
 tuner.onNote(w => ghNote(w));
+
+
+/* ===== REINE STEMMING TEGEN EEN BOURDON (#25) ===== */
+const REIN_IV = [
+  { k: "8", naam: "Octaaf", st: 12, c: 0 }, { k: "5", naam: "Kwint", st: 7, c: 2 }, { k: "4", naam: "Kwart", st: 5, c: -2 },
+  { k: "3", naam: "Grote terts", st: 4, c: -14 }, { k: "m3", naam: "Kleine terts", st: 3, c: 16 }, { k: "6", naam: "Grote sext", st: 9, c: -16 }
+];
+const rein = { root: 62, iv: "3", on: false, hold: 0 };
+try { const r = +localStorage.getItem("reinroot"), v = localStorage.getItem("reiniv"); if (DRONE_NOTES.some(d => d[0] === r)) rein.root = r; if (REIN_IV.some(x => x.k === v)) rein.iv = v; } catch (e) {}
+function reinIv() { return REIN_IV.find(x => x.k === rein.iv); }
+function renderRein() {
+  $("reinRoot").innerHTML = DRONE_NOTES.filter(([m]) => m <= 67).map(([m, n]) => '<option value="' + m + '"' + (m === rein.root ? " selected" : "") + ">Grondtoon " + n + "</option>").join("");
+  $("reinIv").innerHTML = REIN_IV.map(x => '<button data-reiniv="' + x.k + '" aria-pressed="' + (x.k === rein.iv) + '">' + x.naam + "</button>").join("");
+  $("reinIv").querySelectorAll("button").forEach(b => b.onclick = () => { rein.iv = b.dataset.reiniv; try { localStorage.setItem("reiniv", rein.iv); } catch (e) {} renderRein(); });
+  const iv = reinIv(), t = rein.root + iv.st, nm = m => NAMES_NL[((m % 12) + 12) % 12];
+  $("reinGoal").innerHTML = "Speel <b>" + nm(t) + "</b> boven de " + nm(rein.root) + " · rein = tuner " + (iv.c > 0 ? "+" : iv.c < 0 ? "−" : "±") + Math.abs(iv.c) + " cent";
+  $("reinBtn").textContent = rein.on ? "Stop" : "Start bourdon en microfoon";
+  $("reinBtn").setAttribute("aria-pressed", String(rein.on));
+  if (!rein.on) { $("reinCents").textContent = ""; $("reinHint").textContent = ""; $("reinNeedle").className = "tu-needle"; $("reinNeedle").style.left = "calc(50% - 3px)"; }
+  else if (drone && drone.midi !== rein.root) startDrone(rein.root, "rein");
+}
+async function reinToggle() {
+  if (rein.on) { rein.on = false; if (droneSource === "rein") stopDrone(); renderRein(); return; }
+  audio(); startDrone(rein.root, "rein"); rein.on = true; renderRein();
+  if (!tuner.running()) { await tuner.start(); if (!tuner.running()) { rein.on = false; stopDrone(); renderRein(); $("reinHint").textContent = "Zonder microfoon kan ik niet meeluisteren."; return; } }
+}
+function reinUpdate(r) {
+  if (!rein.on) return;
+  if (droneSource !== "rein") { rein.on = false; renderRein(); return; }
+  const iv = reinIv(), target = rein.root + iv.st, needle = $("reinNeedle"), cc = $("reinCents"), hint = $("reinHint");
+  if (!r) { cc.textContent = ""; hint.textContent = "Speel een lange toon."; needle.className = "tu-needle"; return; }
+  const written = r.note + 14;
+  if (written !== target) {
+    cc.textContent = ""; needle.className = "tu-needle";
+    hint.textContent = written === rein.root ? "Dat is de grondtoon. Speel " + NAMES_NL[target % 12] + "." : "Je speelt " + NAMES_NL[((written % 12) + 12) % 12] + ", zoek " + NAMES_NL[target % 12] + ".";
+    return;
+  }
+  const dev = Math.round(r.cents - iv.c), a = Math.abs(dev), cls = a <= 5 ? "good" : a <= 15 ? "mid" : "off";
+  needle.className = "tu-needle " + cls; needle.style.left = "calc(" + (50 + Math.max(-50, Math.min(50, dev))) + "% - 3px)";
+  cc.className = "tu-cents " + cls; cc.textContent = (dev > 0 ? "+" : dev < 0 ? "−" : "") + a;
+  hint.textContent = a <= 5 ? "Rein! De zweving is weg." : dev > 0 ? "Iets te hoog: schuif een fractie verder uit." : "Iets te laag: schuif een fractie in.";
+}
+$("reinRoot").onchange = () => { rein.root = +$("reinRoot").value; try { localStorage.setItem("reinroot", rein.root); } catch (e) {} renderRein(); };
+$("reinBtn").onclick = () => reinToggle();
+tuner.onUpdate(reinUpdate);
+renderRein();
 
 tuner.onNote((written, cents) => { recordPosNote(written, cents); if (!$("tab-logboek").hidden) renderPositions(); });
 $("tuPlay").onclick = () => { const t = tuner.tk; if (t.sc) voorspelen(t.sc, t.tempo, $("tuPlay")); };
