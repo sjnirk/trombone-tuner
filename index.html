@@ -69,12 +69,8 @@ canvas { width: 100%; height: 110px; display: block; }
 .chip { display: inline-flex; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: .85rem; font-variant-numeric: tabular-nums; }
 .chip b { font-weight: 700; } .chip.good em { color: var(--ok); } .chip.mid em { color: var(--warn); } .chip.off em { color: var(--bad); }
 .chip em { font-style: normal; font-weight: 700; }
-.rec { display: inline-flex; align-items: center; gap: 8px; }
-.rec i { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); animation: blink 1s infinite; }
-@keyframes blink { 50% { opacity: .2; } }
-audio { width: 100%; }
 .big { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; }
-@media (prefers-reduced-motion: reduce) { .needle { transition: none; } .rec i { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .needle { transition: none; } }
 </style>
 </head>
 <body>
@@ -110,26 +106,11 @@ audio { width: 100%; }
   </div>
 
   <div class="card">
-    <div class="row spread"><b>Opnemen</b><span class="rec" id="recState" hidden><i></i><span id="recTime">0:00</span></span></div>
-    <p class="status" id="recHelp">Neem op terwijl je speelt. Daarna bewaar je de opname op je telefoon en kies je hem in je app bij Opnames → Opname toevoegen. Daar wordt hij bewaard en per noot geanalyseerd.</p>
-    <div class="row"><button id="recBtn" disabled>Start opname</button></div>
-    <audio id="recAudio" controls hidden></audio>
-    <div class="row"><button class="primary" id="saveBtn" hidden>Bewaar opname</button><button id="discardBtn" hidden>Weggooien</button></div>
-    <p class="status" id="recStatus" role="status"></p>
-  </div>
-
-  <div class="card">
-    <div class="row spread"><b>Laatste 8 seconden</b><span class="status" id="steadyText"></span></div>
-    <canvas id="trace" role="img" aria-label="Afwijking in cent over de laatste 8 seconden"></canvas>
-    <p class="status">Groene band = binnen 10 cent. Een rechte lijn betekent een stabiele toon.</p>
-  </div>
-
-  <div class="card">
     <div class="row spread">
       <span>Stemming A =</span>
       <div class="row"><button id="calDown" aria-label="Lager">−</button><span class="cal" id="calText">440</span><button id="calUp" aria-label="Hoger">+</button></div>
     </div>
-    <p class="status">Noten staan geschreven zoals op jouw blad (Bes-notatie): een geschreven C klinkt als Bes. Leg de telefoon op de lessenaar, ongeveer een meter voor de beker. Alles blijft op je telefoon: er wordt niets verstuurd, en alleen opgenomen als jij op Start opname drukt.</p>
+    <p class="status">Noten staan geschreven zoals op jouw blad (Bes-notatie): een geschreven C klinkt als Bes. Leg de telefoon op de lessenaar, ongeveer een meter voor de beker. Alles blijft op je telefoon: er wordt niets opgenomen, opgeslagen of verstuurd.</p>
     <p class="status" id="errText" role="alert"></p>
   </div>
 </main>
@@ -168,13 +149,10 @@ async function start() {
   analyser = ctx.createAnalyser(); analyser.fftSize = N; src.connect(analyser);
   buf = new Float32Array(N);
   $("startBtn").textContent = "Stop"; $("posText").textContent = "Speel een lange toon";
-  $("recBtn").disabled = !window.MediaRecorder;
   try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {}
   loop();
 }
 function stop() {
-  if (rec && rec.state === "recording") rec.stop();
-  $("recBtn").disabled = true;
   cancelAnimationFrame(raf); raf = 0;
   stream?.getTracks().forEach(t => t.stop()); stream = null;
   ctx?.close(); ctx = null; analyser = null;
@@ -413,46 +391,6 @@ $("pieceReset").onclick = () => { tk.idx = 0; tk.hits = []; tk.needRelease = fal
 let resizeT = null;
 addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(drawPiece, 200); });
 
-/* ===== OPNEMEN ===== */
-let rec = null, recChunks = [], recBlob = null, recStart = 0, recTimer = null;
-function recMime() { return ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"].find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || ""; }
-function startRec() {
-  if (!stream) return;
-  const mime = recMime();
-  try { rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined); } catch (e) { $("recStatus").textContent = "Opnemen wordt niet ondersteund in deze browser."; return; }
-  recChunks = []; recBlob = null;
-  rec.ondataavailable = e => { if (e.data.size) recChunks.push(e.data); };
-  rec.onstop = () => {
-    clearInterval(recTimer); $("recState").hidden = true;
-    recBlob = new Blob(recChunks, { type: (rec.mimeType || mime || "audio/mp4").split(";")[0] });
-    const a = $("recAudio"); a.src = URL.createObjectURL(recBlob); a.hidden = false;
-    $("saveBtn").hidden = false; $("discardBtn").hidden = false; $("recBtn").textContent = "Start opname";
-    $("recStatus").textContent = "Luister terug en bewaar de opname als je tevreden bent.";
-  };
-  rec.start(500); recStart = performance.now();
-  $("recState").hidden = false; $("recBtn").textContent = "Stop opname"; $("recStatus").textContent = "";
-  $("saveBtn").hidden = true; $("discardBtn").hidden = true; $("recAudio").hidden = true;
-  recTimer = setInterval(() => { const s = Math.floor((performance.now() - recStart) / 1000); $("recTime").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); if (s >= 300) rec.stop(); }, 250);
-}
-function recFileName() {
-  const d = new Date(), p = n => String(n).padStart(2, "0");
-  const ext = recBlob.type.includes("webm") ? "webm" : "m4a";
-  const slug = (tk.titel || "oefening").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || "oefening";
-  return "trombone-" + d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "-" + slug + "." + ext;
-}
-async function saveRec() {
-  if (!recBlob) return;
-  const name = recFileName(), file = new File([recBlob], name, { type: recBlob.type });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: name }); $("recStatus").textContent = "Kies ‘Bewaar in Bestanden’. Open daarna je app en voeg de opname toe bij Opnames."; return; }
-    catch (e) { if (e && e.name === "AbortError") return; }
-  }
-  const a = document.createElement("a"); a.href = URL.createObjectURL(recBlob); a.download = name; document.body.append(a); a.click(); a.remove();
-  $("recStatus").textContent = "Bewaard als " + name + " in je downloads. Open je app en voeg de opname toe bij Opnames.";
-}
-$("recBtn").onclick = () => { if (rec && rec.state === "recording") rec.stop(); else startRec(); };
-$("saveBtn").onclick = saveRec;
-$("discardBtn").onclick = () => { recBlob = null; $("recAudio").hidden = true; $("saveBtn").hidden = true; $("discardBtn").hidden = true; $("recStatus").textContent = "Opname weggegooid."; };
 
 $("startBtn").onclick = () => analyser ? stop() : start();
 $("calDown").onclick = () => setA4(A4 - 1);
