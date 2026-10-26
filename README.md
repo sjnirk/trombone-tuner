@@ -6,7 +6,7 @@ Dagelijkse oefencoach met live tuner voor tenortrombone in Bes (vioolsleutel), o
 Tip: zet hem op je beginscherm (Safari → Deel → *Zet op beginscherm*) en open hem altijd vandaar.
 
 ## Wat erin zit
-- **Vandaag:** sessie van 10 minuten in drie blokken (lange tonen, lipslurs en posities, oefening) met timer, metronoom en stemtoon. Leerlijn van 8 weken in notenschrift, met posities en notennamen, theorie per week, en een mix van brassband (recht, legato) en bigband (swing).
+- **Vandaag:** sessie van 10 minuten in drie blokken (lange tonen, lipslurs en posities, oefening) met timer, metronoom en stemtoon. Bij *Start sessie* luistert de microfoon mee (uit te zetten met *Mic*): je ziet welke noot je speelt, of het de juiste is (✓ Raak, Hoger, Lager) en na elke ronde hoe zuiver je was. Leerlijn van 8 weken in notenschrift, met posities en notennamen, theorie per week, en een mix van brassband (recht, legato) en bigband (swing).
 - **Tuner:** luistert via de microfoon: geschreven noot, positie (met alternatieven), afwijking in cent en een spoor van 8 seconden. Met *Meespelen* volgt hij een stuk noot voor noot en geeft hij per noot de zuiverheid.
 - **Trainer:** noten lezen (op naam of positie) en ritme meetikken, op niveau van de week.
 - **Tempo:** metronoom met maatsoort en tik-tempo, en een stemtoon per noot.

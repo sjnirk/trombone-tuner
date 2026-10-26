@@ -170,6 +170,24 @@ a.linkbtn:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; 
 @keyframes flash { from { background: var(--brass); color: #1A1204; } to { background: var(--brass-soft); } }
 .progress i#trBar { transition: width .3s; }
 
+/* Live meeluisteren in de sessie */
+.live { border-top: 1px dashed var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+.live-row { display: flex; gap: 14px; align-items: center; }
+.live-note { display: flex; align-items: baseline; gap: 2px; min-width: 4.2ch; justify-content: center; }
+.live-note b { font-family: var(--font-display); font-weight: 800; font-size: 3.4rem; line-height: .9; }
+.live-note sub { font-family: var(--font-display); font-size: 1.2rem; color: var(--muted); }
+.live-note.good b { color: var(--ok); } .live-note.mid b { color: var(--warn); } .live-note.off b { color: var(--bad); } .live-note.idle b { color: var(--line); }
+.live-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.live-goal { font-weight: 700; color: var(--brass-ink); font-variant-numeric: tabular-nums; }
+.live-bar { position: relative; height: 10px; border-radius: 5px; background: var(--line); }
+.live-zone { position: absolute; left: 40%; width: 20%; top: 0; bottom: 0; background: var(--ok-soft); }
+.live-bar i { position: absolute; top: -5px; width: 5px; height: 20px; border-radius: 3px; background: var(--muted); left: calc(50% - 2.5px); transition: left .08s linear; }
+.live-bar i.good { background: var(--ok); } .live-bar i.mid { background: var(--warn); } .live-bar i.off { background: var(--bad); }
+.live-msg { font-weight: 700; min-height: 1.5em; }
+.live-msg.ok { color: var(--ok); } .live-msg.dir { color: var(--warn); }
+#miniMic[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); border-color: var(--brass); }
+@media (prefers-reduced-motion: reduce) { .live-bar i { transition: none; } }
+
 /* Tuner */
 .tu-note { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-height: 8rem; }
 .tu-note b { font-family: var(--font-display); font-weight: 800; font-size: clamp(5.5rem, 32vw, 8.5rem); line-height: .9; }
@@ -240,6 +258,17 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
       </div>
       <div class="clock" id="clock">3:00</div>
       <div class="blocks" id="blocks"></div>
+      <div class="live" id="live" hidden aria-live="off">
+        <div class="live-row">
+          <div class="live-note"><b id="liveName">–</b><sub id="liveOct"></sub></div>
+          <div class="live-info">
+            <div class="live-goal" id="liveGoal"></div>
+            <div class="live-bar" aria-hidden="true"><span class="live-zone"></span><i id="liveNeedle"></i></div>
+            <div class="live-msg" id="liveMsg">Speel maar</div>
+          </div>
+        </div>
+        <p class="status" id="liveRound"></p>
+      </div>
       <div class="row">
         <button class="primary" id="startBtn">Start sessie</button>
         <button id="skipBtn">Volgend blok</button>
@@ -252,6 +281,7 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <button id="miniPlus" aria-label="Sneller">+</button>
         <button id="miniToggle" aria-pressed="true">Klik aan</button>
         <button class="drone" id="miniDrone" aria-pressed="false">Stemtoon</button>
+        <button id="miniMic" aria-pressed="true">Mic aan</button>
         <button id="miniTuner">Tuner</button>
       </div>
       <div id="doneBox" class="donebox" hidden>Sessie klaar en opgeslagen. Morgen weer.</div>
@@ -646,7 +676,9 @@ async function lockScreen() { try { wakeLock = await navigator.wakeLock?.request
 function unlockScreen() { try { wakeLock?.release(); } catch (e) {} wakeLock = null; }
 
 function sessStart() {
-  audio(); sess.running = true; sess.last = performance.now();
+  audio();
+  if (sessMic && !tuner.running()) { sess.micByUs = true; sessionFollow(); tuner.start(); }
+  sess.running = true; sess.last = performance.now();
   sess.interval = setInterval(sessTick, 200); lockScreen();
   setBpm(blockTempo());
   if (sess.useMetro && !metro.running) metroStart();
@@ -655,6 +687,8 @@ function sessStart() {
 function sessPause() {
   sess.running = false; clearInterval(sess.interval); unlockScreen();
   if (metro.running) metroStop();
+  if (sess.micByUs && tuner.running()) tuner.stop();
+  sess.micByUs = false;
   renderSession();
 }
 function sessTick() {
@@ -667,6 +701,7 @@ function nextBlock(auto) {
   if (sess.idx < BLOKKEN.length - 1) {
     sess.idx++; sess.left = BLOKKEN[sess.idx].min * 60000;
     setBpm(blockTempo());
+    if (sess.micByUs) sessionFollow();
     if (auto) chime(1);
     renderSession();
   } else finishSession(auto);
@@ -1469,7 +1504,7 @@ const tuner = (() => {
     actx?.close(); actx = null; analyser = null;
     try { wake?.release(); } catch (e) {} wake = null;
     $("tuStart").textContent = "Start microfoon";
-    show(null);
+    show(null); notify(null);
   }
   const running = () => !!analyser;
 
@@ -1502,10 +1537,10 @@ const tuner = (() => {
       const m = median(hist), note = Math.round(m), cents = Math.round((m - note) * 100);
       trace.push([now, cents]);
       track({ note, cents }, now);
-      if (now - lastShown > 60) { show({ note, cents }); renderTarget({ note, cents }); lastShown = now; }
+      if (now - lastShown > 60) { show({ note, cents }); renderTarget({ note, cents }); notify({ note, cents }); lastShown = now; }
     } else {
       hist = []; track(null, now);
-      if (now - lastShown > 600) show(null, true);
+      if (now - lastShown > 600) { show(null, true); notify(null); lastShown = now; }
     }
     trace = trace.filter(p => now - p[0] < 8000);
     if (!$("tab-tuner").hidden) drawTrace(now);
@@ -1577,7 +1612,7 @@ const tuner = (() => {
     tk.holdCents.push(r.cents);
     if (now - tk.holdStart >= 200) {
       tk.hits.push(median(tk.holdCents));
-      tk.idx++; tk.needRelease = true; tk.lastHit = written; tk.holdStart = 0; tk.holdCents = [];
+      tk.idx++; tk.needRelease = true; tk.lastHit = written; tk.holdStart = 0; tk.holdCents = []; notify(r);
       renderPiece();
     }
   }
@@ -1656,6 +1691,24 @@ const tuner = (() => {
     try { const el = curNote?.getSVGElement?.() || curNote?.getAttribute?.("el"); el?.scrollIntoView?.({ block: "nearest", inline: "center" }); } catch (e) {}
   }
   function resetPiece() { tk.idx = 0; tk.hits = []; tk.needRelease = false; tk.lastHit = null; tk.holdStart = 0; tk.holdCents = []; }
+  const listeners = [];
+  function notify(r) { listeners.forEach(f => { try { f(r); } catch (e) {} }); }
+  function state() { return { target: currentTarget(), idx: tk.idx, total: tk.seq.length, done: tk.seq.length > 0 && tk.idx >= tk.seq.length, hits: tk.hits.slice() }; }
+  function loadPiece(sc, w, titel, tempo) {
+    const toks = sc.n.split(/[\s|]+/).filter(Boolean);
+    if (!toks.every(t => NOTE_RX.test(t) || REST_RX.test(t))) return false;
+    tk.n = sc.n; tk.maat = /^\d\/\d$/.test(sc.maat || "") ? sc.maat : "4/4"; tk.showPos = sc.pos !== false && showPos;
+    tk.titel = String(titel || "Oefening").slice(0, 80); tk.tempo = tempo || 60; tk.doel = null;
+    tk.seq = []; toks.forEach(t => { const m = NOTE_RX.exec(t); if (m) tk.seq.push({ midi: tokMidi(m[2], m[3], m[4]) }); });
+    resetPiece();
+    $("tuPieceTitle").textContent = tk.titel;
+    $("tuPieceEyebrow").textContent = w !== undefined && w !== null ? "Week " + (w + 1) + " · meespelen" : "Meespelen";
+    renderPiece(); renderTarget(null); notify(null);
+    return true;
+  }
+  function follow(sc, w, titel, tempo) { return loadPiece(sc, w, titel, tempo); }
+  function target(writtenMidi) { tk.seq = []; tk.doel = writtenMidi; tk.showPos = true; renderPiece(); renderTarget(null); notify(null); }
+  function restart() { resetPiece(); renderPiece(); notify(null); }
   function openPiece(sc, w, titel, tempo, fromTap) {
     const toks = sc.n.split(/[\s|]+/).filter(Boolean);
     if (!toks.every(t => NOTE_RX.test(t) || REST_RX.test(t))) return;
@@ -1681,8 +1734,71 @@ const tuner = (() => {
   document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && analyser) { try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {} } });
   if (!navigator.mediaDevices?.getUserMedia) { $("tuStart").disabled = true; $("tuErr").textContent = "Deze browser ondersteunt geen microfoon. Open de app in Safari of Chrome."; }
   setA4(A4);
-  return { openPiece, openDoel, stop, running, redraw() { drawPiece(); drawTrace(performance.now()); }, track, tk, positionsFor };
+  return { openPiece, openDoel, follow, target, restart, state, start: () => analyser ? Promise.resolve() : start(), onUpdate: f => listeners.push(f), stop, running, redraw() { drawPiece(); drawTrace(performance.now()); }, track, tk, positionsFor };
 })();
+
+/* ===== MEELUISTEREN TIJDENS DE SESSIE =====
+   Start sessie zet de microfoon mee aan (uit te zetten met Mic). De app volgt het eerste stuk
+   van het blok noot voor noot; bij blokken zonder stuk is de doelnoot de stemtoon van het blok. */
+let sessMic = true;
+try { sessMic = localStorage.getItem("sessiemic") !== "uit"; } catch (e) {}
+let roundShownAt = 0;
+function sessionFollow() {
+  const w = weekIdx(), sc = LEERLIJN[w].blokken[sess.idx]?.sc?.[0];
+  if (sc) tuner.follow(sc, w, shortTitle(sc.t) || BLOKKEN[sess.idx].naam, pieceTempo(pieceId(w, sess.idx, 0), w));
+  else tuner.target(blockDroneMidi());
+  $("liveRound").textContent = "";
+  renderLive(null);
+}
+function liveName(m) { return NAMES_NL[((m % 12) + 12) % 12]; }
+function liveCls(c) { const a = Math.abs(c); return a <= 10 ? "good" : a <= 25 ? "mid" : "off"; }
+function renderLive(r) {
+  const box = $("live");
+  box.hidden = !(sess.micByUs && tuner.running());
+  if (box.hidden) return;
+  const st = tuner.state(), t = st.target;
+  /* wat je speelt */
+  const note = $("liveName").parentElement, needle = $("liveNeedle");
+  if (r) {
+    const w = r.note + 14, c = liveCls(r.cents);
+    $("liveName").textContent = liveName(w); $("liveOct").textContent = String(Math.floor(w / 12) - 1);
+    note.className = "live-note " + c;
+    needle.style.left = "calc(" + (50 + Math.max(-50, Math.min(50, r.cents))) + "% - 2.5px)"; needle.className = c;
+  } else {
+    $("liveName").textContent = "–"; $("liveOct").textContent = ""; note.className = "live-note idle";
+    needle.style.left = "calc(50% - 2.5px)"; needle.className = "";
+  }
+  /* doel */
+  if (st.total && st.done) {
+    const hits = st.hits, good = hits.filter(c => Math.abs(c) <= 10).length;
+    const avg = Math.round(hits.reduce((a, b) => a + b, 0) / hits.length);
+    $("liveRound").textContent = "Vorige ronde: " + good + " van " + hits.length + " noten zuiver, gemiddeld " + (avg > 0 ? "+" : "") + avg + " cent.";
+    $("liveGoal").textContent = "Ronde klaar";
+    $("liveMsg").className = "live-msg ok"; $("liveMsg").textContent = "Speel het stuk nog eens";
+    if (Date.now() - roundShownAt > 1500) { roundShownAt = Date.now(); setTimeout(() => { if (tuner.state().done) tuner.restart(); }, 1500); }
+    return;
+  }
+  if (t === null || t === undefined) { $("liveGoal").textContent = ""; $("liveMsg").className = "live-msg"; $("liveMsg").textContent = r ? "" : "Speel maar"; return; }
+  const pos = tuner.positionsFor(t - 14), showP = tuner.tk.showPos && pos.length;
+  $("liveGoal").textContent = (st.total ? "Noot " + (st.idx + 1) + " van " + st.total + " · " : "") + "doel " + liveName(t) + (Math.floor(t / 12) - 1) + (showP ? " (" + pos[0] + "e pos.)" : "");
+  const msg = $("liveMsg");
+  if (!r) { msg.className = "live-msg"; msg.textContent = st.total && st.idx > 0 ? "Volgende noot" : "Speel maar"; return; }
+  const w = r.note + 14;
+  if (w === t) { const good = liveCls(r.cents) === "good"; msg.className = "live-msg " + (good ? "ok" : "dir"); msg.textContent = good ? "✓ Raak" : (r.cents > 0 ? "Goede noot, iets te hoog" : "Goede noot, iets te laag"); }
+  else { msg.className = "live-msg dir"; msg.textContent = "Je speelt " + liveName(w) + ": " + (w < t ? "hoger" : "lager"); }
+}
+function renderMicBtn() { $("miniMic").setAttribute("aria-pressed", String(sessMic)); $("miniMic").textContent = sessMic ? "Mic aan" : "Mic uit"; }
+tuner.onUpdate(renderLive);
+$("miniMic").onclick = () => {
+  sessMic = !sessMic;
+  try { localStorage.setItem("sessiemic", sessMic ? "aan" : "uit"); } catch (e) {}
+  if (sess.running) {
+    if (sessMic && !tuner.running()) { sess.micByUs = true; sessionFollow(); tuner.start(); }
+    if (!sessMic && sess.micByUs) { tuner.stop(); sess.micByUs = false; }
+  }
+  renderMicBtn(); renderLive(null);
+};
+renderMicBtn();
 
 /* ===== EVENTS ===== */
 $("posToggle").onclick = () => { showPos = !showPos; try { localStorage.setItem("posities", showPos ? "aan" : "uit"); } catch (e) {} renderPosToggle(); rerenderScores(); };
@@ -1713,7 +1829,7 @@ document.querySelectorAll("[data-tab]").forEach(btn => btn.onclick = () => {
   try { localStorage.setItem("tab", btn.dataset.tab); } catch (e) {}
   if (btn.dataset.tab === "vandaag") rerenderScores();
   if (btn.dataset.tab === "trainer") renderTrainer();
-  if (btn.dataset.tab === "tuner") tuner.redraw(); else if (tuner.running()) tuner.stop();
+  if (btn.dataset.tab === "tuner") tuner.redraw(); else if (tuner.running() && !sess.micByUs) tuner.stop();
   if (btn.dataset.tab !== "trainer") { rhClear(); rh.phase = "idle"; $("tapZone").disabled = true; $("tapZone").textContent = "Tik hier"; }
 });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && sess.running) lockScreen(); });
