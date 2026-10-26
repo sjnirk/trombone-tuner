@@ -280,8 +280,14 @@ nav.tabs {
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
 }
-nav.tabs div { max-width: 520px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
-nav.tabs button { border: 0; background: transparent; color: var(--muted); padding: 10px 2px; font-size: .8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+nav.tabs div { max-width: 520px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 4px; align-items: center; }
+nav.tabs button.metrofab { color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; font-size: .9rem; margin-left: 4px; font-variant-numeric: tabular-nums; }
+nav.tabs button.metrofab.on { background: var(--brass); color: #1b1408; border-color: var(--brass); }
+dialog.sheet { width: min(520px, 100%); max-width: 100%; max-height: 92dvh; margin: auto auto 0; padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)); border: 0; border-radius: 18px 18px 0 0; background: var(--bg); color: var(--ink); overflow-y: auto; }
+dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
+dialog.sheet > .card + .card { margin-top: 12px; }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+nav.tabs button { border: 0; background: transparent; color: var(--muted); padding: 10px 2px; font-size: .88rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var(--brass-soft); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -369,7 +375,7 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
       </div>
       <label class="eyebrow" for="noteField">Notitie van vandaag</label>
       <textarea id="noteField" placeholder="Wat ging goed, wat was lastig?"></textarea>
-      <button id="toTrainer" style="align-self:flex-start">Naar de trainer</button>
+      <button id="toTrainer" style="align-self:flex-start">Naar Oefenen</button>
       <div class="row spread">
         <button class="ghost" id="manualBtn">Geoefend zonder app</button>
         <span class="status" id="saveStatus"></span>
@@ -516,58 +522,28 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <p class="quizfb" id="ghFb" aria-live="polite"></p>
         <p class="status" id="ghStats"></p>
       </div>
-    </div>
-  </section>
-
-  <!-- METRONOOM -->
-  <section id="tab-metronoom" class="tabpanel" hidden>
-    <div class="card">
-      <div class="bpm" id="bigBpm">60</div>
-      <p class="muted" style="text-align:center">slagen per minuut</p>
-      <div class="beats" id="beats"></div>
-      <input type="range" id="bpmRange" min="40" max="160" value="60" aria-label="Tempo">
-      <div class="row" style="justify-content:center">
-        <button id="m5">−5</button><button id="m1">−1</button><button id="p1">+1</button><button id="p5">+5</button>
-      </div>
-      <div class="row spread">
-        <div class="seg" role="group" aria-label="Maatsoort">
-          <button data-meter="2">2/4</button><button data-meter="3">3/4</button><button data-meter="4">4/4</button>
+      <div class="card" id="reinCard">
+        <h2>Zuiver tegen een bourdon</h2>
+        <p class="muted">In een band stem je op elkaar, niet op de tuner. De app houdt een grondtoon aan; jij speelt het interval erboven. De meter laat zien hoe ver je van <em>rein</em> zit, niet van A = 440. Gebruik oortjes, dan hoort de microfoon alleen jou.</p>
+        <div class="row">
+          <label class="vh" for="reinRoot">Grondtoon</label>
+          <select id="reinRoot"></select>
+          <div class="pick" role="group" aria-label="Interval" id="reinIv"></div>
         </div>
-        <button id="tapBtn">Tik tempo</button>
+        <div class="rein-goal" id="reinGoal"></div>
+        <div class="tu-meter" aria-hidden="true">
+          <div class="tu-scale"><div class="tu-zone"></div></div>
+          <div class="tu-tick"></div>
+          <div class="tu-needle" id="reinNeedle"></div>
+        </div>
+        <div class="tu-labels"><span>−50 te laag</span><span>rein</span><span>te hoog +50</span></div>
+        <div class="tu-cents" id="reinCents" aria-live="polite"></div>
+        <p class="tu-hint" id="reinHint"></p>
+        <button class="primary" id="reinBtn" aria-pressed="false">Start bourdon en microfoon</button>
+        <details class="theory"><summary>Waarom een terts lager?</summary>
+          <p>Een tuner gebruikt de <b>gelijkzwevende stemming</b>: elke halve toon is precies even groot, zodat een piano in alle toonsoorten bruikbaar is. Maar twee tonen klinken pas echt samen (zonder zweving) als hun frequenties een eenvoudige verhouding hebben: kwint 3:2, grote terts 5:4. Die <b>reine</b> intervallen wijken af van de tuner: een reine grote terts is 14 cent lager, een kleine terts 16 cent hoger, een kwint 2 cent hoger. In de brassband speel je de terts van een akkoord dus bewust iets lager. Op de trombone doe je dat met de schuif: een fractie verder uit.</p>
+        </details>
       </div>
-      <button class="primary" id="metroBtn">Start metronoom</button>
-    </div>
-    <div class="card" style="margin-top:16px">
-      <h2>Stemtoon</h2>
-      <p class="muted">Speel een lange toon mee met de stemtoon. Hoor je een trilling (zweving), dan zit je er net naast: schuif heel licht tot de trilling verdwijnt.</p>
-      <div class="row">
-        <label class="vh" for="droneNote">Noot</label>
-        <select id="droneNote"></select>
-        <button class="drone" id="droneBtn" aria-pressed="false">Speel stemtoon</button>
-      </div>
-      <p class="status">Geschreven noot in Bes. De stemtoon klinkt zoals jouw trombone hoort te klinken (A = 440 Hz).</p>
-    </div>
-    <div class="card" style="margin-top:16px" id="reinCard">
-      <h2>Zuiver tegen een bourdon</h2>
-      <p class="muted">In een band stem je op elkaar, niet op de tuner. De app houdt een grondtoon aan; jij speelt het interval erboven. De meter laat zien hoe ver je van <em>rein</em> zit, niet van A = 440. Gebruik oortjes, dan hoort de microfoon alleen jou.</p>
-      <div class="row">
-        <label class="vh" for="reinRoot">Grondtoon</label>
-        <select id="reinRoot"></select>
-        <div class="pick" role="group" aria-label="Interval" id="reinIv"></div>
-      </div>
-      <div class="rein-goal" id="reinGoal"></div>
-      <div class="tu-meter" aria-hidden="true">
-        <div class="tu-scale"><div class="tu-zone"></div></div>
-        <div class="tu-tick"></div>
-        <div class="tu-needle" id="reinNeedle"></div>
-      </div>
-      <div class="tu-labels"><span>−50 te laag</span><span>rein</span><span>te hoog +50</span></div>
-      <div class="tu-cents" id="reinCents" aria-live="polite"></div>
-      <p class="tu-hint" id="reinHint"></p>
-      <button class="primary" id="reinBtn" aria-pressed="false">Start bourdon en microfoon</button>
-      <details class="theory"><summary>Waarom een terts lager?</summary>
-        <p>Een tuner gebruikt de <b>gelijkzwevende stemming</b>: elke halve toon is precies even groot, zodat een piano in alle toonsoorten bruikbaar is. Maar twee tonen klinken pas echt samen (zonder zweving) als hun frequenties een eenvoudige verhouding hebben: kwint 3:2, grote terts 5:4. Die <b>reine</b> intervallen wijken af van de tuner: een reine grote terts is 14 cent lager, een kleine terts 16 cent hoger, een kwint 2 cent hoger. In de brassband speel je de terts van een akkoord dus bewust iets lager. Op de trombone doe je dat met de schuif: een fractie verder uit.</p>
-      </details>
     </div>
   </section>
 
@@ -642,11 +618,40 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
   <div role="tablist">
     <button role="tab" data-tab="vandaag" aria-selected="true">Vandaag</button>
     <button role="tab" data-tab="tuner" aria-selected="false">Spelen</button>
-    <button role="tab" data-tab="trainer" aria-selected="false">Trainer</button>
-    <button role="tab" data-tab="metronoom" aria-selected="false">Tempo</button>
+    <button role="tab" data-tab="trainer" aria-selected="false">Oefenen</button>
     <button role="tab" data-tab="logboek" aria-selected="false">Logboek</button>
+    <button class="metrofab" id="metroFab" aria-haspopup="dialog" aria-label="Metronoom en stemtoon openen"><span aria-hidden="true">♩</span> <b id="fabBpm">60</b></button>
   </div>
 </nav>
+  <dialog class="sheet" id="metroSheet" aria-label="Metronoom en stemtoon">
+    <div class="sheet-head"><h2>Metronoom en stemtoon</h2><button class="ghost sm" id="sheetClose" aria-label="Sluiten">Sluit</button></div>
+    <div class="card">
+      <div class="bpm" id="bigBpm">60</div>
+      <p class="muted" style="text-align:center">slagen per minuut</p>
+      <div class="beats" id="beats"></div>
+      <input type="range" id="bpmRange" min="40" max="160" value="60" aria-label="Tempo">
+      <div class="row" style="justify-content:center">
+        <button id="m5">−5</button><button id="m1">−1</button><button id="p1">+1</button><button id="p5">+5</button>
+      </div>
+      <div class="row spread">
+        <div class="seg" role="group" aria-label="Maatsoort">
+          <button data-meter="2">2/4</button><button data-meter="3">3/4</button><button data-meter="4">4/4</button>
+        </div>
+        <button id="tapBtn">Tik tempo</button>
+      </div>
+      <button class="primary" id="metroBtn">Start metronoom</button>
+    </div>
+    <div class="card">
+      <h2>Stemtoon</h2>
+      <p class="muted">Speel een lange toon mee met de stemtoon. Hoor je een trilling (zweving), dan zit je er net naast: schuif heel licht tot de trilling verdwijnt.</p>
+      <div class="row">
+        <label class="vh" for="droneNote">Noot</label>
+        <select id="droneNote"></select>
+        <button class="drone" id="droneBtn" aria-pressed="false">Speel stemtoon</button>
+      </div>
+      <p class="status">Geschreven noot in Bes. De stemtoon klinkt zoals jouw trombone hoort te klinken (A = 440 Hz).</p>
+    </div>
+  </dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.3/build/cjs/vexflow-bravura.js"></script>
 <script src="config.js"></script>
@@ -812,6 +817,7 @@ function flashBeat(b) {
 function setBpm(v) { metro.bpm = Math.max(40, Math.min(160, Math.round(v))); renderMetro(); }
 function renderMetro() {
   $("bigBpm").textContent = metro.bpm; $("miniBpm").textContent = metro.bpm; $("bpmRange").value = metro.bpm;
+  $("fabBpm").textContent = metro.bpm; $("metroFab").classList.toggle("on", metro.running || (!!drone && droneSource === "tab"));
   $("metroBtn").textContent = metro.running ? "Stop metronoom" : "Start metronoom";
   $("beats").innerHTML = Array.from({ length: metro.meter }, () => "<i></i>").join("");
   document.querySelectorAll("[data-meter]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.meter === metro.meter)));
@@ -1310,6 +1316,7 @@ function blockDroneMidi() {
 }
 function renderDrone() {
   const on = !!drone;
+  $("metroFab").classList.toggle("on", metro.running || (on && droneSource === "tab"));
   $("droneBtn").setAttribute("aria-pressed", String(on && droneSource === "tab"));
   $("droneBtn").textContent = on && droneSource === "tab" ? "Stop stemtoon" : "Speel stemtoon";
   const m = blockDroneMidi(), nm = NAMES_NL[((m % 12) + 12) % 12];
@@ -2615,7 +2622,7 @@ function weekChallenge() {
   }
   if (kind === "gehoor") {
     const n = days.reduce((a, k) => a + ((((log[k] || {}).trainer || {}).gehoor || [0])[0]), 0);
-    return { kind, tekst: "Speel 15 opgaven goed na op gehoor", n, doel: 15, left, hint: "Trainer → Naspelen op gehoor. Interval of motief maakt het spannender." };
+    return { kind, tekst: "Speel 15 opgaven goed na op gehoor", n, doel: 15, left, hint: "Oefenen → Naspelen op gehoor. Interval of motief maakt het spannender." };
   }
   const n = days.filter(practiced).length;
   return { kind, tekst: "Oefen 5 van de 7 dagen deze week", n, doel: 5, left, hint: "Een sessie telt, ook een korte." };
@@ -2866,6 +2873,9 @@ $("manualBtn").onclick = () => saveToday({ handmatig: true, week: weekIdx() + 1 
 $("cpScale").onchange = e => saveSettings({ scale: e.target.checked });
 $("cpSight").onchange = e => saveSettings({ sight: e.target.checked });
 $("startDate").onchange = e => { if (e.target.value) { viewWeek = null; saveSettings({ start: e.target.value }); } };
+$("metroFab").onclick = () => { const d = $("metroSheet"); if (d.showModal) d.showModal(); else d.setAttribute("open", ""); };
+$("sheetClose").onclick = () => $("metroSheet").close();
+$("metroSheet").addEventListener("click", e => { if (e.target === $("metroSheet")) $("metroSheet").close(); });
 document.querySelectorAll("[data-tab]").forEach(btn => btn.onclick = () => {
   document.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", String(b === btn)));
   document.querySelectorAll(".tabpanel").forEach(p => p.hidden = p.id !== "tab-" + btn.dataset.tab);
