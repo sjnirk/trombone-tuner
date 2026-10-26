@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#11151B">
+<title>Trombone Tuner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@600;800&display=swap">
+<style>
+/* Eén scherm voor op de lessenaar: grote noot, naald, spoor van de laatste 8 seconden. */
+:root {
+  --bg: #ECEFF3; --surface: #FFFFFF; --ink: #18202C; --muted: #586273; --line: #D3D9E1;
+  --brass: #B07A1E; --brass-ink: #855A0F; --brass-soft: #F4E6CB;
+  --ok: #2E7A55; --ok-soft: #D8EEE3; --warn: #A3610A; --bad: #B3261E;
+  --font-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #11151B; --surface: #1A2029; --ink: #E7EBF1; --muted: #98A2B2; --line: #2A323E;
+    --brass: #DDA645; --brass-ink: #E8B85E; --brass-soft: #3A2E18; --ok: #5BC08D; --ok-soft: #173326; --warn: #E9A23B; --bad: #F2766B;
+    color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: max(16px, env(safe-area-inset-top, 0px)); padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+}
+main { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 2rem; line-height: 1; margin: 0; }
+p { margin: 0; }
+.muted { color: var(--muted); } .status { font-size: .85rem; color: var(--muted); }
+.eyebrow { font-size: .75rem; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); font-weight: 700; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.spread { justify-content: space-between; }
+button { font: inherit; font-weight: 700; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; min-height: 44px; cursor: pointer; }
+button.primary { background: var(--brass); border-color: var(--brass); color: #1A1204; }
+button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+a { color: var(--brass-ink); font-weight: 700; }
+
+.note { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-height: 8.5rem; }
+.note b { font-family: var(--font-display); font-weight: 800; font-size: clamp(6rem, 34vw, 9rem); line-height: .9; }
+.note sub { font-family: var(--font-display); font-size: 2rem; color: var(--muted); }
+.pos { text-align: center; font-weight: 700; color: var(--brass-ink); min-height: 1.5em; }
+.meter { position: relative; height: 56px; }
+.scale { position: absolute; inset: 22px 0 auto; height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; }
+.scale .zone { position: absolute; left: 40%; width: 20%; top: 0; bottom: 0; background: var(--ok-soft); }
+.tick { position: absolute; top: 14px; width: 2px; height: 28px; background: var(--muted); left: calc(50% - 1px); }
+.needle { position: absolute; top: 6px; width: 6px; height: 44px; border-radius: 3px; background: var(--muted); left: calc(50% - 3px); transition: left .08s linear, background .2s; }
+.needle.good { background: var(--ok); } .needle.mid { background: var(--warn); } .needle.off { background: var(--bad); }
+.labels { display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cents { text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 2.2rem; font-variant-numeric: tabular-nums; min-height: 2.4rem; }
+.cents.good { color: var(--ok); } .cents.mid { color: var(--warn); } .cents.off { color: var(--bad); }
+.hint { text-align: center; min-height: 1.5em; font-weight: 700; }
+canvas { width: 100%; height: 110px; display: block; }
+.cal { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 5ch; text-align: center; }
+.idle .note b, .idle .cents { color: var(--line); }
+@media (prefers-reduced-motion: reduce) { .needle { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="row spread">
+    <div><p class="eyebrow">Trombone in Bes · vioolsleutel</p><h1>Live tuner</h1></div>
+    <button class="primary" id="startBtn">Start microfoon</button>
+  </div>
+
+  <div class="card idle" id="tunerCard">
+    <div class="note" aria-live="polite"><b id="noteName">–</b><sub id="noteOct"></sub></div>
+    <p class="pos" id="posText">Druk op Start en speel een lange toon</p>
+    <div class="meter" aria-hidden="true">
+      <div class="scale"><div class="zone"></div></div>
+      <div class="tick"></div>
+      <div class="needle" id="needle"></div>
+    </div>
+    <div class="labels"><span>−50 te laag</span><span>0</span><span>te hoog +50</span></div>
+    <div class="cents" id="centsText"></div>
+    <p class="hint" id="hintText"></p>
+  </div>
+
+  <div class="card">
+    <div class="row spread"><b>Laatste 8 seconden</b><span class="status" id="steadyText"></span></div>
+    <canvas id="trace" role="img" aria-label="Afwijking in cent over de laatste 8 seconden"></canvas>
+    <p class="status">Groene band = binnen 10 cent. Een rechte lijn betekent een stabiele toon.</p>
+  </div>
+
+  <div class="card">
+    <div class="row spread">
+      <span>Stemming A =</span>
+      <div class="row"><button id="calDown" aria-label="Lager">−</button><span class="cal" id="calText">440</span><button id="calUp" aria-label="Hoger">+</button></div>
+    </div>
+    <p class="status">Noten staan geschreven zoals op jouw blad (Bes-notatie): een geschreven C klinkt als Bes. Leg de telefoon op de lessenaar, ongeveer een meter voor de beker. Er wordt niets opgenomen of opgeslagen.</p>
+    <p class="status" id="errText" role="alert"></p>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const NAMES = ["C", "Cis", "D", "Es", "E", "F", "Fis", "G", "As", "A", "Bes", "B"];
+/* Natuurtonen van de tenortrombone (concert, MIDI) per positie: grondtoon Bes1 = 34. */
+const PARTIALS = [12, 19, 24, 28, 31, 36];
+function positionsFor(concert) {
+  const out = [];
+  for (let p = 1; p <= 7; p++) for (const iv of PARTIALS) if (34 - (p - 1) + iv === concert) out.push(p);
+  return out;
+}
+let A4 = 440;
+try { const v = +localStorage.getItem("a4"); if (v >= 430 && v <= 450) A4 = v; } catch (e) {}
+
+let ctx = null, analyser = null, stream = null, raf = 0, wake = null;
+const N = 4096;
+let buf = null, hist = [], trace = [];
+
+async function start() {
+  $("errText").textContent = "";
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  } catch (e) {
+    $("errText").textContent = e && e.name === "NotAllowedError"
+      ? "Geen toegang tot de microfoon. Sta de microfoon toe voor deze site in je browserinstellingen en probeer het opnieuw."
+      : "De microfoon kon niet worden gestart. Sluit andere apps die de microfoon gebruiken en probeer het opnieuw.";
+    return;
+  }
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === "suspended") await ctx.resume();
+  const src = ctx.createMediaStreamSource(stream);
+  analyser = ctx.createAnalyser(); analyser.fftSize = N; src.connect(analyser);
+  buf = new Float32Array(N);
+  $("startBtn").textContent = "Stop"; $("posText").textContent = "Speel een lange toon";
+  try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {}
+  loop();
+}
+function stop() {
+  cancelAnimationFrame(raf); raf = 0;
+  stream?.getTracks().forEach(t => t.stop()); stream = null;
+  ctx?.close(); ctx = null; analyser = null;
+  try { wake?.release(); } catch (e) {} wake = null;
+  $("startBtn").textContent = "Start microfoon";
+  show(null);
+}
+
+/* YIN op een teruggesampled venster (~12 kHz): bereik 55–800 Hz. */
+const y = new Float32Array(N), d = new Float32Array(1024), dp = new Float32Array(1024);
+function detect(x, sr) {
+  const k = Math.max(1, Math.round(sr / 12000)), sr2 = sr / k, n = Math.floor(x.length / k);
+  let rms = 0;
+  for (let i = 0; i < n; i++) { let s = 0; for (let j = 0; j < k; j++) s += x[i * k + j]; y[i] = s / k; rms += y[i] * y[i]; }
+  rms = Math.sqrt(rms / n);
+  if (rms < 0.006) return null;
+  const tauMin = Math.floor(sr2 / 800), tauMax = Math.min(Math.ceil(sr2 / 55), n - 1);
+  const W = Math.min(512, n - tauMax - 1);
+  if (W < 128) return null;
+  for (let tau = 1; tau <= tauMax; tau++) { let s = 0; for (let j = 0; j < W; j++) { const v = y[j] - y[j + tau]; s += v * v; } d[tau] = s; }
+  dp[0] = 1; let sum = 0;
+  for (let tau = 1; tau <= tauMax; tau++) { sum += d[tau]; dp[tau] = sum > 0 ? d[tau] * tau / sum : 1; }
+  let tau = -1;
+  for (let t = tauMin; t <= tauMax; t++) if (dp[t] < 0.15) { while (t + 1 <= tauMax && dp[t + 1] < dp[t]) t++; tau = t; break; }
+  if (tau < 0) return null;
+  let tt = tau;
+  if (tau > 1 && tau < tauMax) { const a = dp[tau - 1], b = dp[tau], c = dp[tau + 1], den = a - 2 * b + c; if (den) tt = tau + (a - c) / (2 * den); }
+  const f = sr2 / tt;
+  return f >= 55 && f <= 800 ? f : null;
+}
+const median = a => { const s = a.slice().sort((p, q) => p - q); return s[Math.floor(s.length / 2)]; };
+
+let lastShown = 0;
+function loop() {
+  raf = requestAnimationFrame(loop);
+  if (!analyser) return;
+  analyser.getFloatTimeDomainData(buf);
+  const f = detect(buf, ctx.sampleRate), now = performance.now();
+  if (f) {
+    const midi = 69 + 12 * Math.log2(f / A4);
+    hist.push(midi); if (hist.length > 5) hist.shift();
+    const m = median(hist), note = Math.round(m), cents = Math.round((m - note) * 100);
+    trace.push([now, cents]);
+    if (now - lastShown > 60) { show({ note, cents }); lastShown = now; }
+  } else {
+    hist = [];
+    if (now - lastShown > 600) show(null, true);
+  }
+  trace = trace.filter(p => now - p[0] < 8000);
+  drawTrace(now);
+}
+function cls(c) { const a = Math.abs(c); return a <= 10 ? "good" : a <= 25 ? "mid" : "off"; }
+function show(r, keepTrace) {
+  const card = $("tunerCard");
+  if (!r) {
+    card.classList.add("idle");
+    $("noteName").textContent = "–"; $("noteOct").textContent = "";
+    $("centsText").textContent = ""; $("centsText").className = "cents"; $("hintText").textContent = "";
+    $("needle").className = "needle"; $("needle").style.left = "calc(50% - 3px)";
+    if (!keepTrace) { trace = []; drawTrace(performance.now()); }
+    if (analyser) $("posText").textContent = "Speel een lange toon";
+    return;
+  }
+  card.classList.remove("idle");
+  const written = r.note + 14, c = cls(r.cents);
+  $("noteName").textContent = NAMES[((written % 12) + 12) % 12];
+  $("noteOct").textContent = String(Math.floor(written / 12) - 1);
+  const pos = positionsFor(r.note);
+  $("posText").textContent = pos.length ? pos[0] + "e positie" + (pos.length > 1 ? " · ook " + pos.slice(1).map(p => p + "e").join(", ") : "") : "Geen natuurtoon in posities 1–7";
+  const pct = 50 + Math.max(-50, Math.min(50, r.cents));
+  $("needle").style.left = "calc(" + pct + "% - 3px)"; $("needle").className = "needle " + c;
+  $("centsText").textContent = (r.cents > 0 ? "+" : "") + r.cents + " cent"; $("centsText").className = "cents " + c;
+  $("hintText").textContent = c === "good" ? "Zuiver" : r.cents > 0 ? "Te hoog: schuif iets verder uit" : "Te laag: schuif iets naar binnen";
+}
+function drawTrace(now) {
+  const cv = $("trace"), w = cv.clientWidth, h = cv.clientHeight, dpr = devicePixelRatio || 1;
+  if (!w) return;
+  if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  const cs = getComputedStyle(document.documentElement), tok = n => cs.getPropertyValue(n).trim();
+  const yOf = c => h / 2 - (Math.max(-50, Math.min(50, c)) / 50) * (h / 2 - 4);
+  g.fillStyle = tok("--ok-soft"); g.fillRect(0, yOf(10), w, yOf(-10) - yOf(10));
+  g.strokeStyle = tok("--line"); g.beginPath(); g.moveTo(0, h / 2 + .5); g.lineTo(w, h / 2 + .5); g.stroke();
+  const col = { good: tok("--ok"), mid: tok("--warn"), off: tok("--bad") };
+  trace.forEach(([t, c]) => { g.fillStyle = col[cls(c)]; g.beginPath(); g.arc(w - ((now - t) / 8000) * w, yOf(c), 2, 0, Math.PI * 2); g.fill(); });
+  const recent = trace.filter(p => now - p[0] < 3000).map(p => p[1]);
+  if (recent.length > 20) {
+    const mean = recent.reduce((a, b) => a + b, 0) / recent.length;
+    const dev = recent.reduce((a, b) => a + Math.abs(b - mean), 0) / recent.length;
+    $("steadyText").textContent = dev < 5 ? "Heel stabiel" : dev < 10 ? "Redelijk stabiel" : "Wiebelt: blaas gelijkmatig";
+  } else $("steadyText").textContent = "";
+}
+function setA4(v) { A4 = Math.max(430, Math.min(450, v)); $("calText").textContent = A4; try { localStorage.setItem("a4", A4); } catch (e) {} }
+
+$("startBtn").onclick = () => analyser ? stop() : start();
+$("calDown").onclick = () => setA4(A4 - 1);
+$("calUp").onclick = () => setA4(A4 + 1);
+document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && analyser) { try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {} } });
+addEventListener("resize", () => drawTrace(performance.now()));
+setA4(A4); drawTrace(performance.now());
+if (!navigator.mediaDevices?.getUserMedia) { $("startBtn").disabled = true; $("errText").textContent = "Deze browser ondersteunt geen microfoon. Open de pagina in Safari of Chrome."; }
+</script>
+</body>
+</html>
