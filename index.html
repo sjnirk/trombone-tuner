@@ -200,6 +200,15 @@ a.linkbtn:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; 
 .postip { font-weight: 700; }
 button[aria-pressed="true"]#tuPlay, .pp button[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); border-color: var(--brass); }
 
+/* Bibliotheek */
+.bib-list { display: flex; flex-direction: column; }
+.bib-item { display: flex; flex-direction: column; gap: 6px; padding: 12px 0; border-top: 1px solid var(--line); }
+.bib-item:first-child { border-top: 0; padding-top: 4px; }
+.bib-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.bib-head b { font-size: 1.05rem; min-width: 0; }
+.bib-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+[data-bibf][aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); }
+
 /* Tuner */
 .tu-note { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-height: 8rem; }
 .tu-note b { font-family: var(--font-display); font-weight: 800; font-size: clamp(5.5rem, 32vw, 8.5rem); line-height: .9; }
@@ -369,6 +378,17 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         </div>
       </div>
 
+      <div class="card" id="bibCard">
+        <div class="row spread">
+          <h2>Stukken</h2>
+          <div class="seg" role="group" aria-label="Welke stukken"><button data-bibf="past">Voor jou</button><button data-bibf="alle">Alle</button><button data-bibf="eigen">Eigen</button></div>
+        </div>
+        <p class="muted">Extra stukken naast je leerlijn. ‘Voor jou’ zijn stukken met noten die je al kent, of met hooguit twee nieuwe noten: een mooie uitdaging.</p>
+        <div class="bib-list" id="bibList"></div>
+        <div class="row"><label class="filebtn">Eigen stuk toevoegen (MusicXML)<input type="file" id="bibFile" class="vh" accept=".musicxml,.xml,application/vnd.recordare.musicxml+xml,application/xml,text/xml"></label></div>
+        <p class="status" id="bibStatus">Exporteer een partij uit bijvoorbeeld MuseScore als MusicXML. Bassleutelpartijen worden omgezet naar Bes-vioolsleutel.</p>
+      </div>
+
       <div class="card">
         <div class="row spread"><b>Laatste 8 seconden</b><span class="status" id="tuSteady"></span></div>
         <canvas class="tu-trace" id="tuTrace" role="img" aria-label="Afwijking in cent over de laatste 8 seconden"></canvas>
@@ -512,7 +532,7 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
 <nav class="tabs" aria-label="Onderdelen">
   <div role="tablist">
     <button role="tab" data-tab="vandaag" aria-selected="true">Vandaag</button>
-    <button role="tab" data-tab="tuner" aria-selected="false">Tuner</button>
+    <button role="tab" data-tab="tuner" aria-selected="false">Spelen</button>
     <button role="tab" data-tab="trainer" aria-selected="false">Trainer</button>
     <button role="tab" data-tab="metronoom" aria-selected="false">Tempo</button>
     <button role="tab" data-tab="logboek" aria-selected="false">Logboek</button>
@@ -969,6 +989,9 @@ async function connectDb() {
     const lt = log[todayKey()]?.trainer; if (tr && lt && lt.sec > tr.sec) tr = null;
     if (!$("tab-trainer").hidden) renderTrainerHead();
   }, () => { $("dbStatus").textContent = "Verbinding met opslag verbroken. Herlaad de pagina."; });
+  db.collection("stukken").onSnapshot(q => {
+    const next = {}; q.docs.forEach(d => { next[d.id] = Object.assign({}, d.data()); }); eigenStukken = next; renderBib();
+  }, () => {});
   db.collection("voortgang").onSnapshot(q => {
     if (q.metadata.fromCache && !loaded.voortgang) return;
     const next = {}; q.docs.forEach(d => { next[d.id] = Object.assign({}, d.data()); }); voortgang = next; markLoaded("voortgang");
@@ -992,7 +1015,7 @@ function makeLocalDb() {
   const sub = (key, fn, snap) => { (subs[key] = subs[key] || []).push(fn); setTimeout(() => fn(snap()), 0); return () => { subs[key] = (subs[key] || []).filter(f => f !== fn); }; };
   /* Wijzigingen uit een ander tabblad van dezelfde app ook hier tonen. */
   addEventListener("storage", e => { if (e.key && e.key.startsWith(P)) emit(e.key.slice(P.length)); });
-  const VALID = /^(settings\/profiel|log\/\d{4}-\d{2}-\d{2}|voortgang\/w\d+-b\d+-s\d+)$/;
+  const VALID = /^(settings\/profiel|log\/\d{4}-\d{2}-\d{2}|voortgang\/w\d+-b\d+-s\d+|stukken\/imp-[a-z0-9-]{1,60})$/;
   return {
     doc: path => ({
       async set(data) { try { localStorage.setItem(P + path, JSON.stringify(Object.assign({}, data, { _t: Date.now() }))); } catch (e) { throw { code: "quota_exceeded" }; } emit(path); markDirty(path); },
@@ -1995,6 +2018,179 @@ $("miniMic").onclick = () => {
 };
 renderMicBtn();
 
+/* ===== BIBLIOTHEEK (#23) =====
+   Vrije melodieën (traditioneel of componist lang overleden) en eigen composities, in Bes-vioolsleutel.
+   Posities worden automatisch aangevuld. ak = akkoorden per maat (geschreven), voor de begeleiding.
+   stijl: "brassband" (recht) of "bigband" (swing). */
+const BIB = [
+  { id: "mary", t: "Mary Had a Little Lamb", stijl: "traditioneel", bpm: 80,
+    n: "E4q D4q C4q D4q | E4q E4q E4h | D4q D4q D4h | E4q G4q G4h | E4q D4q C4q D4q | E4q E4q E4q E4q | D4q D4q E4q D4q | C4w",
+    ak: "C | C | G | C | C | C | G | C" },
+  { id: "kortjakje", t: "Altijd is Kortjakje ziek", stijl: "traditioneel", bpm: 80,
+    n: "C4q C4q G4q G4q | A4q A4q G4h | F4q F4q E4q E4q | D4q D4q C4h | G4q G4q F4q F4q | E4q E4q D4h | G4q G4q F4q F4q | E4q E4q D4h | C4q C4q G4q G4q | A4q A4q G4h | F4q F4q E4q E4q | D4q D4q C4h",
+    ak: "C | F C | F C | G C | C F | C G | C F | C G | C | F C | F C | G C" },
+  { id: "largo", t: "Going Home (Largo, Dvořák)", stijl: "brassband", bpm: 60,
+    n: "E4q G4q G4h | E4q D4q C4h | D4q E4q G4q E4q | D4w | E4q G4q G4h | E4q D4q C4h | D4q E4q D4q C4q | C4w",
+    ak: "C | C | G | G | C | C F | G | C" },
+  { id: "vaderjacob", t: "Vader Jacob", stijl: "traditioneel", bpm: 84,
+    n: "C4q D4q E4q C4q | C4q D4q E4q C4q | E4q F4q G4h | E4q F4q G4h | G48 A48 G48 F48 E4q C4q | G48 A48 G48 F48 E4q C4q | C4q G3q C4h | C4q G3q C4h",
+    ak: "C | C | C | C | C | C | C G | C G" },
+  { id: "ode", t: "Ode an die Freude (Beethoven)", stijl: "brassband", bpm: 84,
+    n: "E4q E4q F4q G4q | G4q F4q E4q D4q | C4q C4q D4q E4q | E4qd D48 D4h | E4q E4q F4q G4q | G4q F4q E4q D4q | C4q C4q D4q E4q | D4qd C48 C4h",
+    ak: "C | G | C | C G | C | G | C | G C" },
+  { id: "jingle", t: "Jingle Bells (refrein)", stijl: "traditioneel", bpm: 100,
+    n: "E4q E4q E4h | E4q E4q E4h | E4q G4q C4qd D48 | E4w | F4q F4q F4qd F48 | F4q E4q E4q E48 E48 | E4q D4q D4q E4q | D4h G4h | E4q E4q E4h | E4q E4q E4h | E4q G4q C4qd D48 | E4w | F4q F4q F4q F4q | F4q E4q E4q E48 E48 | G4q G4q F4q D4q | C4w",
+    ak: "C | C | C | C | F | C | D7 | G7 | C | C | C | C | F | C | G7 | C" },
+  { id: "birthday", t: "Happy Birthday", stijl: "traditioneel", bpm: 90, maat: "3/4",
+    n: "G38 G38 | A3q G3q C4q | B3h G38 G38 | A3q G3q D4q | C4h G38 G38 | G4q E4q C4q | B3q A3q F48 F48 | E4q C4q D4q | C4h",
+    ak: "C | C | G | G | C | C | F | C G | C" },
+  { id: "auldlangsyne", t: "Auld Lang Syne", stijl: "brassband", bpm: 72,
+    n: "G3q | C4qd C48 C4q E4q | D4qd C48 D4q E48 D48 | C4qd C48 E4q G4q | A4hd A4q | G4qd E48 E4q C4q | D4qd C48 D4q E48 D48 | C4qd A38 A3q G3q | C4hd",
+    ak: "C | C | G | C | F | C | G | F G | C" },
+  { id: "susanna", t: "Oh! Susanna (couplet)", stijl: "traditioneel", bpm: 100,
+    n: "C48 D48 | E4q G4q G4q A4q | G4q E4q C4q D4q | E4q E4q D4q C4q | D4h Rq C48 D48 | E4q G4q G4q A4q | G4q E4q C4q D4q | E4q E4q D4q D4q | C4h Rq",
+    ak: "C | C | C | C | G | C | C | G | C" },
+  { id: "avondkoraal", t: "Avondkoraal", stijl: "brassband", bpm: 60, eigen: true,
+    n: "C4h E4h | G4h F4h | E4h D4h | C4w | E4h F4h | G4h A4h | G4h F4h | E4w | D4h E4h | F4h G4h | A4h G4h | F4h E4h | D4h F4h | E4h D4h | B3h D4h | C4w",
+    ak: "C | G | C G | C | C F | C F | C G | C | G C | F C | F C | F C | G | C G | G | C" },
+  { id: "mars", t: "Mars van de Lessenaar", stijl: "brassband", bpm: 100, eigen: true,
+    n: "C4q E4q G4q E4q | C4q E4q G4h | A4q G4q F4q E4q | D4h Rh | B3q D4q G4q D4q | B3q D4q G4h | A4q G4q F4q D4q | C4h Rh",
+    ak: "C | C | F C | G | G | G | F G | C" },
+  { id: "strut", t: "Trombone Strut", stijl: "bigband", bpm: 96, eigen: true,
+    n: "C4q Rq Eb48 E48 G4q | A4h G4h | C4q Rq Eb48 E48 G4q | Bb4h A4h | F4q Rq Ab48 A48 C5q | Bb4h A4h | G4q F4q E4q D4q | C4w",
+    ak: "C7 | C7 | C7 | C7 | F7 | F7 | G7 | C7" },
+  { id: "sundayshuffle", t: "Sunday Shuffle", stijl: "bigband", bpm: 100, eigen: true,
+    n: "C48 E48 G4q A4q G4q | Bb48 A48 G4h Rq | C48 E48 G4q A4q G4q | Bb48 A48 G4h Rq | F48 A48 C5q D5q C5q | Eb48 F48 A4h Rq | C48 E48 G4q A4q G4q | Bb48 A48 G4h Rq | D48 F48 B4q D5q B4q | C48 D48 Eb4q F4q A4q | G4q E4q C4q A3q | B3q D4q G4h",
+    ak: "C7 | C7 | C7 | C7 | F7 | F7 | C7 | C7 | G7 | F7 | C7 | G7" }
+];
+const BIB_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const tokMidiW = (L, acc, oct) => (+oct + 1) * 12 + BIB_PC[L] + (acc === "#" ? 1 : acc === "b" ? -1 : 0);
+/* Vul ontbrekende posities aan met de laagste positie waarin de noot als natuurtoon ligt. */
+function withPositions(n) {
+  return n.split("|").map(bar => bar.trim().split(/\s+/).filter(Boolean).map(tok => {
+    const m = NOTE_RX.exec(tok);
+    if (!m || m[6]) return tok;
+    const pp = primaryPos(tokMidiW(m[2], m[3], m[4]) - 14);
+    return pp ? tok.replace(/(\))?$/, "@" + pp.p + "$1") : tok;
+  }).join(" ")).join(" | ");
+}
+function pieceNotes(n) { const s = new Set(); n.split(/[\s|]+/).forEach(t => { const m = NOTE_RX.exec(t); if (m) s.add(tokMidiW(m[2], m[3], m[4])); }); return s; }
+/* Niveau: welke noten ken je al uit de leerlijn (t/m deze week) en welke zijn nieuw? */
+function bibFit(piece, w) {
+  const known = new Set(notePool(w).map(x => x.midi)), need = [...pieceNotes(piece.n)];
+  const nieuw = need.filter(m => !known.has(m)).sort((a, b) => a - b);
+  let vanaf = null;
+  if (nieuw.length) for (let i = w + 1; i < LEERLIJN.length; i++) { const k = new Set(notePool(i).map(x => x.midi)); if (need.every(m => k.has(m))) { vanaf = i; break; } }
+  return { past: !nieuw.length, nieuw, vanaf };
+}
+function writtenLabel(m) { return NAMES_NL[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); }
+
+/* --- eigen stukken (MusicXML) --- */
+let eigenStukken = {};
+function parseMusicXML(text, fileName) {
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("Dit bestand is geen geldige MusicXML.");
+  const part = doc.querySelector("part");
+  if (!part) throw new Error("Geen partij gevonden in dit bestand.");
+  const titel = (doc.querySelector("work-title")?.textContent || doc.querySelector("movement-title")?.textContent || fileName.replace(/\.[^.]+$/, "")).trim().slice(0, 60) || "Eigen stuk";
+  let div = 1, beats = 4, beatType = 4, clef = "G", transpose = 0, gezien = false;
+  const DURS = [[4, "w"], [3, "hd"], [2, "h"], [1.5, "qd"], [1, "q"], [0.5, "8"]];
+  const bars = [];
+  part.querySelectorAll(":scope > measure").forEach((meas, mi) => {
+    const a = meas.querySelector("attributes");
+    if (a) {
+      if (a.querySelector("divisions")) div = +a.querySelector("divisions").textContent || div;
+      if (a.querySelector("time beats")) { beats = +a.querySelector("time beats").textContent; beatType = +a.querySelector("time beat-type").textContent; }
+      if (a.querySelector("clef sign")) clef = a.querySelector("clef sign").textContent.trim();
+      if (a.querySelector("transpose chromatic")) { transpose = +a.querySelector("transpose chromatic").textContent + 12 * (+(a.querySelector("transpose octave-change")?.textContent || 0)); gezien = true; }
+    }
+    if (beatType !== 4 || ![2, 3, 4].includes(beats)) throw new Error("Maatsoort " + beats + "/" + beatType + " wordt nog niet ondersteund (alleen 2/4, 3/4 en 4/4).");
+    const toks = [];
+    meas.querySelectorAll(":scope > note").forEach(nt => {
+      if (nt.querySelector("chord") || nt.querySelector("grace")) return;
+      if (nt.querySelector("voice") && nt.querySelector("voice").textContent.trim() !== "1") return;
+      const q = (+nt.querySelector("duration")?.textContent || 0) / div;
+      const d = DURS.find(([v]) => Math.abs(v - q) < 1e-6);
+      if (!d) throw new Error("Maat " + (mi + 1) + " heeft een notenwaarde die nog niet wordt ondersteund (bijv. zestiende of triool).");
+      if (nt.querySelector("rest")) { if (d[1] === "hd" || d[1] === "qd") throw new Error("Maat " + (mi + 1) + ": gepunteerde rust wordt nog niet ondersteund."); toks.push("R" + d[1]); return; }
+      const step = nt.querySelector("pitch step").textContent, alter = +(nt.querySelector("pitch alter")?.textContent || 0), oct = +nt.querySelector("pitch octave").textContent;
+      let midi = (oct + 1) * 12 + BIB_PC[step] + alter;
+      /* Doel: geschreven Bes-vioolsleutel (klinkt 14 halve tonen lager). MusicXML-pitches zijn geschreven;
+         transpose t betekent klinkend = geschreven + t. Bes-vioolsleutel (t = -14) en Bes-trompetpartijen
+         (t = -2, worden op trombone gewoon zo gelezen) blijven gelijk; de rest wordt omgerekend. */
+      const t = gezien ? transpose : (clef === "F" ? 0 : -14), shift = (t === -14 || t === -2) ? 0 : t + 14;
+      midi += shift;
+      const SP = { 0: "C", 1: "C#", 2: "D", 3: "Eb", 4: "E", 5: "F", 6: "F#", 7: "G", 8: "Ab", 9: "A", 10: "Bb", 11: "B" };
+      const name = !shift && Math.abs(alter) <= 1 ? step + (alter === 1 ? "#" : alter === -1 ? "b" : "") : SP[((midi % 12) + 12) % 12];
+      const o = Math.floor(midi / 12) - 1;
+      if (midi < 52 || midi > 79) throw new Error("Maat " + (mi + 1) + ": noot buiten het bereik dat de app kent (geschreven E3 tot G5).");
+      toks.push(name + o + d[1]);
+    });
+    if (toks.length) bars.push(toks.join(" "));
+  });
+  if (!bars.length) throw new Error("Geen noten gevonden.");
+  return { titel, n: bars.join(" | "), maat: beats + "/4" };
+}
+async function importMusicXML(file) {
+  const st = $("bibStatus");
+  if (!file) return;
+  if (/\.mxl$/i.test(file.name)) { st.textContent = "Gecomprimeerde .mxl wordt niet ondersteund. Exporteer als ‘MusicXML (ongecomprimeerd, .musicxml)’."; return; }
+  try {
+    const r = parseMusicXML(await file.text(), file.name);
+    const id = "imp-" + (r.titel.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "stuk") + "-" + Date.now().toString(36);
+    await db.doc("stukken/" + id).set({ titel: r.titel, n: r.n, maat: r.maat, toegevoegd: todayKey() });
+    st.textContent = "Toegevoegd: " + r.titel + " (" + r.n.split("|").length + " maten).";
+  } catch (e) { st.textContent = e.message || "Importeren is mislukt."; }
+}
+
+/* --- weergave --- */
+let bibFilter = "past";
+try { bibFilter = localStorage.getItem("bibfilter") || "past"; } catch (e) {}
+function bibItems() {
+  const eigen = Object.keys(eigenStukken).map(id => ({ id, t: eigenStukken[id].titel, n: eigenStukken[id].n, maat: eigenStukken[id].maat, stijl: "eigen", bpm: 72, imp: true }));
+  return BIB.concat(eigen);
+}
+function renderBib() {
+  const box = $("bibList"); if (!box) return;
+  const w = currentWeekIdx();
+  document.querySelectorAll("[data-bibf]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bibf === bibFilter)));
+  const items = bibItems().map(p => Object.assign({ fit: bibFit(p, w) }, p))
+    .filter(p => bibFilter === "alle" || (bibFilter === "past" ? (p.fit.past || p.fit.nieuw.length <= 2) : p.imp))
+    .sort((a, b) => (b.fit.past - a.fit.past) || (a.fit.nieuw.length - b.fit.nieuw.length));
+  box.innerHTML = "";
+  if (!items.length) {
+    const e = document.createElement("p"); e.className = "muted";
+    e.textContent = bibFilter === "eigen" ? "Nog geen eigen stukken. Voeg er een toe als MusicXML (bijvoorbeeld geëxporteerd uit MuseScore)." : "Nog geen stukken die bij jouw noten passen. Speel eerst je leerlijn verder; bij Alle zie je wat er komt.";
+    box.append(e); return;
+  }
+  items.forEach(p => {
+    const li = document.createElement("div"); li.className = "bib-item";
+    const head = document.createElement("div"); head.className = "bib-head";
+    const tt = document.createElement("b"); tt.textContent = p.t;
+    const chips = document.createElement("div"); chips.className = "bib-chips";
+    const st = document.createElement("span"); st.className = "chip idle"; st.textContent = p.stijl === "bigband" ? "bigband · swing" : p.stijl === "brassband" ? "brassband" : p.stijl === "eigen" ? "eigen stuk" : "traditioneel";
+    const fit = document.createElement("span"); fit.className = "chip" + (p.fit.past ? " ok" : "");
+    fit.textContent = p.fit.past ? "Past nu" : p.fit.nieuw.length <= 2 ? (p.fit.nieuw.length === 1 ? "1 nieuwe noot" : "2 nieuwe noten") : p.fit.vanaf !== null ? "Vanaf week " + (p.fit.vanaf + 1) : "Nieuwe noten";
+    chips.append(st, fit); head.append(tt, chips);
+    const info = document.createElement("p"); info.className = "status";
+    info.textContent = (p.fit.past ? "" : "Nieuw voor jou: " + p.fit.nieuw.map(writtenLabel).join(", ") + ". ") + (p.maat && p.maat !== "4/4" ? p.maat + " · " : "") + "♩ = " + p.bpm + (p.eigen ? " · eigen compositie" : "");
+    const row = document.createElement("div"); row.className = "row";
+    const sc = { t: p.t + (p.stijl === "bigband" ? " · bigband, swing" : ""), n: withPositions(p.n), maat: p.maat, ak: p.ak };
+    const vp = document.createElement("button"); vp.textContent = "Voorspelen"; vp.setAttribute("aria-pressed", "false");
+    vp.onclick = () => voorspelen(sc, p.bpm, vp);
+    const mp = document.createElement("button"); mp.className = "primary"; mp.textContent = "Meespelen";
+    mp.onclick = () => { tuner.openPiece(sc, null, p.t, p.bpm, true); window.scrollTo({ top: 0, behavior: "smooth" }); };
+    row.append(vp, mp);
+    if (p.imp) { const del = document.createElement("button"); del.className = "ghost"; del.textContent = "Verwijder";
+      let armed = 0; del.onclick = () => { if (Date.now() - armed > 4000) { armed = Date.now(); del.textContent = "Zeker weten?"; return; } db.doc("stukken/" + p.id).delete(); };
+      row.append(del); }
+    li.append(head, info, row); box.append(li);
+  });
+}
+
+document.querySelectorAll("[data-bibf]").forEach(b => b.onclick = () => { bibFilter = b.dataset.bibf; try { localStorage.setItem("bibfilter", bibFilter); } catch (e) {} renderBib(); });
+$("bibFile").onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; importMusicXML(f); };
+
 /* ===== EVENTS ===== */
 $("posToggle").onclick = () => { showPos = !showPos; try { localStorage.setItem("posities", showPos ? "aan" : "uit"); } catch (e) {} renderPosToggle(); rerenderScores(); };
 $("startBtn").onclick =() => sess.running ? sessPause() : sessStart();
@@ -2024,7 +2220,7 @@ document.querySelectorAll("[data-tab]").forEach(btn => btn.onclick = () => {
   try { localStorage.setItem("tab", btn.dataset.tab); } catch (e) {}
   if (btn.dataset.tab === "vandaag") rerenderScores();
   if (btn.dataset.tab === "trainer") renderTrainer();
-  if (btn.dataset.tab === "tuner") tuner.redraw(); else if (tuner.running() && !sess.micByUs) tuner.stop();
+  if (btn.dataset.tab === "tuner") { tuner.redraw(); renderBib(); } else if (tuner.running() && !sess.micByUs) tuner.stop();
   if (btn.dataset.tab !== "trainer") { rhClear(); rh.phase = "idle"; $("tapZone").disabled = true; $("tapZone").textContent = "Tik hier"; }
 });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && sess.running) lockScreen(); });
