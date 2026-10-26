@@ -81,7 +81,7 @@ canvas { width: 100%; height: 110px; display: block; }
   </div>
 
   <div class="card idle" id="tunerCard">
-    <div class="note" aria-live="polite"><b id="noteName">–</b><sub id="noteOct"></sub></div>
+    <div class="note"><b id="noteName">–</b><sub id="noteOct"></sub></div>
     <p class="pos" id="posText">Druk op Start en speel een lange toon</p>
     <div class="meter" aria-hidden="true">
       <div class="scale"><div class="zone"></div></div>
@@ -135,16 +135,19 @@ let buf = null, hist = [], trace = [];
 
 async function start() {
   $("errText").textContent = "";
+  /* Safari staat geluid alleen toe als de AudioContext direct in de tik wordt gemaakt. */
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx.resume?.();
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
   } catch (e) {
     $("errText").textContent = e && e.name === "NotAllowedError"
       ? "Geen toegang tot de microfoon. Sta de microfoon toe voor deze site in je browserinstellingen en probeer het opnieuw."
       : "De microfoon kon niet worden gestart. Sluit andere apps die de microfoon gebruiken en probeer het opnieuw.";
+    ctx.close(); ctx = null;
     return;
   }
-  ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === "suspended") await ctx.resume();
+  if (ctx.state === "suspended") { try { await ctx.resume(); } catch (e) {} }
   const src = ctx.createMediaStreamSource(stream);
   analyser = ctx.createAnalyser(); analyser.fftSize = N; src.connect(analyser);
   buf = new Float32Array(N);
@@ -257,7 +260,7 @@ const NOTE_RX = /^(\()?([A-G])(#|b)?(\d)(w|hd|h|qd|q|8)(?:@(\d))?(\))?$/;
 const REST_RX = /^R(w|h|q|8)$/;
 const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const params = new URLSearchParams(location.search);
-const tk = { titel: "", n: "", maat: "4/4", seq: [], idx: 0, hits: [], holdStart: 0, holdCents: [], needRelease: false, lastHit: null, gapStart: 0, doel: null };
+const tk = { showPos: params.get("pos") !== "0", titel: "", n: "", maat: "4/4", seq: [], idx: 0, hits: [], holdStart: 0, holdCents: [], needRelease: false, lastHit: null, gapStart: 0, doel: null };
 
 function tokMidi(L, acc, oct) { return (+oct + 1) * 12 + PC[L] + (acc === "#" ? 1 : acc === "b" ? -1 : 0); }
 function nameOf(m) { return NAMES[((m % 12) + 12) % 12]; }
@@ -304,7 +307,7 @@ function renderTarget(r) {
   el.hidden = false; el.innerHTML = "";
   const tg = document.createElement("span"); tg.className = "tg";
   const pos = positionsFor(t - 14);
-  tg.textContent = "Doel: " + nameOf(t) + (Math.floor(t / 12) - 1) + (pos.length ? " · " + pos[0] + "e pos." : "");
+  tg.textContent = "Doel: " + nameOf(t) + (Math.floor(t / 12) - 1) + (tk.showPos && pos.length ? " · " + pos[0] + "e pos." : "");
   el.append(tg);
   if (r) {
     const w = r.note + 14, s = document.createElement("span");
@@ -340,6 +343,7 @@ function renderPiece() {
   }
 }
 function drawPiece() {
+  if (!tk.seq.length) return;
   const host = $("pieceScore"); host.innerHTML = "";
   const VF = window.Vex && (window.Vex.Flow || window.Vex);
   if (!VF || !VF.Renderer) { host.textContent = tk.seq.map((s, i) => (i === tk.idx ? "[" : "") + nameOf(s.midi) + (i === tk.idx ? "]" : "")).join(" "); return; }
@@ -366,7 +370,7 @@ function drawPiece() {
         const note = new VF.StaveNote({ keys: [m[2].toLowerCase() + (m[3] || "") + "/" + m[4]], duration: dur, auto_stem: true });
         if (m[3]) note.addModifier(new VF.Accidental(m[3]), 0);
         if (dur.endsWith("d")) { if (VF.Dot && VF.Dot.buildAndAttach) VF.Dot.buildAndAttach([note], { all: true }); else if (note.addDotToAll) note.addDotToAll(); }
-        if (m[6]) { const a = new VF.Annotation(m[6]); a.setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM); note.addModifier(a, 0); }
+        if (m[6] && tk.showPos) { const a = new VF.Annotation(m[6]); a.setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM); note.addModifier(a, 0); }
         const i = ni++;
         const c = i < tk.idx ? col[cls(tk.hits[i])] : i === tk.idx ? cur : null;
         if (c) note.setStyle({ fillStyle: c, strokeStyle: c });
