@@ -450,7 +450,7 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
       <div class="card" id="bibCard">
         <div class="row spread">
           <h2>Stukken</h2>
-          <div class="seg" role="group" aria-label="Welke stukken"><button data-bibf="past">Voor jou</button><button data-bibf="alle">Alle</button><button data-bibf="eigen">Eigen</button></div>
+          <div class="seg" role="group" aria-label="Welke stukken"><button data-bibf="past">Voor jou</button><button data-bibf="jazz">Jazz</button><button data-bibf="alle">Alle</button><button data-bibf="eigen">Eigen</button></div>
         </div>
         <p class="muted">Extra stukken naast je leerlijn. ‘Voor jou’ zijn stukken met noten die je al kent, of met hooguit twee nieuwe noten: een mooie uitdaging.</p>
         <div class="bib-list" id="bibList"></div>
@@ -752,6 +752,50 @@ const LEERLIJN = [
     theorie: { titel: "Klaar voor de band", tekst: ["Een brassband heeft drie trombones: twee tenortrombones in vioolsleutel en een <b>bastrombone</b> in bassleutel. Als beginner speel je meestal 2e trombone.", "Een bigband heeft meestal vier trombones en die lezen <b>bassleutel in C</b>. Ga je die kant op, dan leer je later ook bassleutel lezen. Dezelfde posities, andere namen op papier.", "Bij het eerste bezoek aan een band: vraag naar het opleidingsorkest, neem je eigen mondstuk mee en zeg eerlijk hoe lang je speelt."] },
     noten: "Blad lezen en ritmes klappen van een nieuw stuk." }
 ];
+/* Eigen jazzy etudes (makkelijk, in de geest van 'easy jazz'-etudeboeken; eigen composities). */
+const JAZZ_LEERLIJN = [
+{
+"t": "Eerste Bossa · jazz, bossa",
+"ak": "C6 | Dm7 | G7 | C6",
+"n": "E4qd@4 G48@1 G4h@1 | F4qd@3 E48@4 F4h@3 | G4qd@1 F#48@2 F4h@3 | E4w@4"
+},
+{
+"t": "Avondballade · jazz, ballad, swing",
+"ak": "C6 | Am7 | Dm7 | G7 | C6 | A7 | Dm7 G7 | C6",
+"n": "(E4h@4 G4h@1) | (E4hd@4 C4q@1) | (D4h@6 F4h@3) | G4w@1 | (E4h@4 G4h@1) | (Eb4h@5 E4h@4) | (F4h@3 D4h@6) | C4w@1"
+},
+{
+"t": "Swingstap · jazz, swing",
+"ak": "C6 | C6 | Dm7 | G7 | C6 | Am7 | Dm7 G7 | C6",
+"n": "Rq E48@4 G48@1 A4q@4 G4q@1 | E4h@4 Rh | Rq F48@3 A48@4 B4q@2 A4q@4 | G4h@1 Rh | Rq E48@4 G48@1 A4q@4 C5q@1 | A4q@4 G4q@1 E4h@4 | D4q@6 F4q@3 G4q@1 B3q@2 | C4w@1"
+},
+{
+"t": "Bluesbrief · jazz, swing",
+"ak": "C7 | C7 | C7 | C7 | F7 | F7 | C7 | C7 | G7 | F7 | C7 | G7",
+"n": "C4q@1 E48@4 G48@1 Bb4q@3 G4q@1 | Rq A48@4 G48@1 E4h@4 | C4q@1 E48@4 G48@1 Bb4q@3 C5q@1 | Bb4h@3 Rh | F4q@3 A4q@4 C5q@1 A4q@4 | A4h@4 Rh | C4q@1 E48@4 G48@1 Bb4q@3 G4q@1 | Rq A48@4 G48@1 E4h@4 | G4q@1 B4q@2 D4q@6 F4q@3 | F4h@3 A4h@4 | G4q@1 E4q@4 C4h@1 | D4q@6 F4q@3 G4h@1"
+},
+{
+"t": "Walkin' Slide · jazz, swing",
+"ak": "C6 | A7 | Dm7 | G7 | C6 | A7 | Dm7 G7 | C6",
+"n": "C4q@1 D4q@6 E4q@4 G4q@1 | A4q@4 G4q@1 E4q@4 C#4q@7 | D4q@6 E4q@4 F4q@3 A4q@4 | G4q@1 F4q@3 D4q@6 B3q@2 | C4q@1 E4q@4 G4q@1 A4q@4 | Bb4q@3 A4q@4 G4q@1 E4q@4 | D4q@6 F4q@3 G4q@1 B3q@2 | C4w@1"
+},
+{
+"t": "Tongbossa · jazz, bossa",
+"ak": "F6 | Gm7 C7 | F6 | D7 | Gm7 | C7 | F6 C7 | F6",
+"n": "F4q@3 A48@4 C58@1 Rq A4q@4 | G4q@1 Bb48@3 A48@4 G4q@1 E4q@4 | F4q@3 A48@4 C58@1 Rq C5q@1 | Rq F#48@2 A48@4 C5q@1 A4q@4 | Bb4q@3 G4q@1 D4q@6 F4q@3 | E4q@4 G4q@1 Bb4q@3 G4q@1 | A4q@4 F4q@3 G4q@1 E4q@4 | F4w@3"
+},
+{
+"t": "Late Avond · jazz, ballad, swing",
+"ak": "Dm | Gm7 | A7 | Dm | Bb6 | Gm7 | A7 | Dm",
+"n": "(A4h@4 F4h@3) | (G4hd@1 Bb4q@3) | (A4h@4 C#4h@7) | D4w@6 | (D4h@6 F4h@3) | (Bb4h@3 G4h@1) | (E4hd@4 C#4q@7) | D4w@6"
+},
+{
+"t": "Riff Raff · jazz, swing",
+"ak": "F7 | F7 | F7 | F7 | Bb7 | Bb7 | F7 | F7 | C7 | Bb7 | F7 | F7",
+"n": "F4q@3 Ab48@5 A48@4 C5q@1 Rq | Rq C58@1 A48@4 F4h@3 | F4q@3 Ab48@5 A48@4 C5q@1 Rq | Eb4q@5 F4q@3 Rh | Bb4q@3 Ab48@5 F48@3 D4q@6 Rq | Rq D48@6 F48@3 Ab4h@5 | F4q@3 Ab48@5 A48@4 C5q@1 Rq | Rq C58@1 A48@4 F4h@3 | C5q@1 Bb4q@3 G4q@1 E4q@4 | Bb4q@3 Ab48@5 F48@3 D4h@6 | F4q@3 A4q@4 C5q@1 A4q@4 | F4w@3"
+}
+];
+JAZZ_LEERLIJN.forEach((sc, w) => LEERLIJN[w] && LEERLIJN[w].blokken[2].sc.push(sc));
 const BLOKKEN = [ { naam: "Lange tonen", min: 3 }, { naam: "Lipslurs en posities", min: 3 }, { naam: "Oefening", min: 4 } ];
 
 /* ===== HULP ===== */
@@ -1805,6 +1849,8 @@ function parseChord(sym) {
 }
 function bandStyle(sc) {
   const t = (sc.t || "") + " " + (sc.stijl || "");
+  if (/bossa|latin/i.test(t)) return "bossa";
+  if (/ballad/i.test(t)) return "ballad";
   if (/swing|bigband/i.test(t)) return "swing";
   if (/mars/i.test(t)) return "mars";
   if (/koraal|largo|going home|amazing|auld|legato|hymne/i.test(t)) return "koraal";
@@ -1869,6 +1915,28 @@ function scheduleBand(a, sc, t0, spb, swing) {
     const root = 36 + s.c.pc, next = spans[si + 1], beats = Math.max(1, Math.round(s.d));
     const chord = voicing(s.c);
     if (style === "koraal") { bassNote(a, out, at(s.t), s.d * spb * 0.98, root, 0.8); pianoChord(a, out, at(s.t), s.d * spb * 0.98, chord, 0.8); return; }
+    if (style === "bossa") {          /* recht: bas 1 en 2-en (grondtoon, kwint), piano 3-3-2, rimshot en zachte hihat */
+      for (let x = 0; x < s.d - 1e-6; x += 0.5) {
+        const b = s.t + x, p = Math.round((b - s.barStart) * 2) / 2, half = p % 2;
+        if (half === 0) bassNote(a, out, at(b), spb * 1.4, root, 0.85);
+        if (half === 1.5) bassNote(a, out, at(b), spb * 0.45, root + 7, 0.7);
+        if (p === 0 || p === 1.5 || p === 3) pianoChord(a, out, at(b), spb * 0.45, chord, 0.6);
+        if (p === 1 || p === 2.5) drum(a, out, at(b), "snare", 0.3);
+        drum(a, out, at(b), "hat", 0.45);
+        if (half === 0) drum(a, out, at(b), "kick", 0.3);
+      }
+      return;
+    }
+    if (style === "ballad") {         /* rustig: aangehouden akkoord, bas op 1 en 3, zachte ride en hihat op 2 en 4 */
+      pianoChord(a, out, at(s.t), s.d * spb * 0.97, chord, 0.55);
+      for (let k = 0; k < beats; k++) {
+        const b = s.t + k, bib = Math.round(b - s.barStart);
+        if (bib % 2 === 0) bassNote(a, out, at(b), spb * 1.9, root + (bib === 2 ? 7 : 0), 0.7);
+        drum(a, out, at(b), "ride", 0.45);
+        if (bib % 2 === 1) drum(a, out, at(b), "hat", 0.5);
+      }
+      return;
+    }
     for (let k = 0; k < beats; k++) {
       const b = s.t + k, beatInBar = Math.round(b - s.barStart);
       if (style === "swing") {
@@ -2714,6 +2782,54 @@ const BIB = [
     n: "C48 E48 G4q A4q G4q | Bb48 A48 G4h Rq | C48 E48 G4q A4q G4q | Bb48 A48 G4h Rq | F48 A48 C5q D5q C5q | Eb48 F48 A4h Rq | C48 E48 G4q A4q G4q | Bb48 A48 G4h Rq | D48 F48 B4q D5q B4q | C48 D48 Eb4q F4q A4q | G4q E4q C4q A3q | B3q D4q G4h",
     ak: "C7 | C7 | C7 | C7 | F7 | F7 | C7 | C7 | G7 | F7 | C7 | G7" }
 ];
+const JAZZ_BIB = [
+{
+"id": "zondagbossa",
+"t": "Zondagmiddag Bossa",
+"stijl": "jazz",
+"feel": "bossa",
+"bpm": 104,
+"ak": "Fmaj7 | Fmaj7 | Gm7 | C7 | Am7 | D7 | Gm7 C7 | F6",
+"n": "A4qd@4 C58@1 A4h@4 | G4qd@1 A48@4 F4h@3 | Bb4qd@3 D58@3 Bb4h@3 | Bb4qd@3 A48@4 G4h@1 | C5qd@1 A48@4 E4h@4 | F#4qd@2 A48@4 C5h@1 | Bb4q@3 A4q@4 G4q@1 E4q@4 | F4w@3"
+},
+{
+"id": "maanlicht",
+"t": "Maanlicht Ballade",
+"stijl": "jazz",
+"feel": "ballad",
+"bpm": 63,
+"ak": "Bbmaj7 | Gm7 | Cm7 | F7 | Bbmaj7 | Eb6 | Cm7 F7 | Bb6",
+"n": "(D4h@6 F4h@3) | (G4hd@1 Bb4q@3) | (Eb4h@5 G4h@1) | (F4hd@3 A4q@4) | (Bb4h@3 F4h@3) | (G4h@1 Eb4h@5) | (Eb4h@5 A4h@4) | Bb4w@3"
+},
+{
+"id": "shufflestreet",
+"t": "Shuffle Street",
+"stijl": "jazz",
+"feel": "swing",
+"bpm": 108,
+"ak": "G7 | C7 | G7 | G7 | C7 | C7 | G7 | E7 | Am7 | D7 | G7 E7 | Am7 D7",
+"n": "Rq G48@1 Bb48@3 B4q@2 G4q@1 | Bb4q@3 G4q@1 E4h@4 | Rq G48@1 Bb48@3 B4q@2 D5q@3 | B4h@2 Rh | Rq C58@1 Bb48@3 G4q@1 E4q@4 | G4h@1 Rh | Rq G48@1 Bb48@3 B4q@2 G4q@1 | G#4q@5 B4q@2 D5h@3 | C5q@1 A4q@4 E4h@4 | D4q@6 F#4q@2 A4q@4 C5q@1 | B4q@2 G4q@1 G#4q@5 E4q@4 | A4q@4 C5q@1 D5h@3"
+},
+{
+"id": "coolbones",
+"t": "Cool Bones",
+"stijl": "jazz",
+"feel": "swing",
+"bpm": 96,
+"ak": "Cmaj7 | Cmaj7 | Ebmaj7 | Ebmaj7 | Dm7 | G7 | Cmaj7 | Cmaj7",
+"n": "Rq E48@4 G48@1 B4h@2 | A4q@4 G48@1 E48@4 G4h@1 | Rq G48@1 Bb48@3 D5h@3 | C5q@1 Bb48@3 G48@1 Bb4h@3 | Rq D48@6 F48@3 A4h@4 | G4q@1 F48@3 D48@6 B3h@2 | C4q@1 E4q@4 G4q@1 B4q@2 | C5w@1"
+},
+{
+"id": "brassblues",
+"t": "Blues voor de Brassband",
+"stijl": "jazz",
+"feel": "swing",
+"bpm": 100,
+"ak": "Bb7 | Eb7 | Bb7 | Bb7 | Eb7 | Eb7 | Bb7 | G7 | Cm7 | F7 | Bb7 G7 | Cm7 F7",
+"n": "Bb4q@3 D48@6 F48@3 Ab4q@5 F4q@3 | G4h@1 Eb4h@5 | Bb4q@3 D48@6 F48@3 Ab4q@5 Bb4q@3 | F4h@3 Rh | Eb4q@5 G48@1 Bb48@3 Db5q@4 Bb4q@3 | G4h@1 Rh | Bb4q@3 D48@6 F48@3 Ab4q@5 F4q@3 | B4q@2 D5q@3 F4h@3 | Eb4q@5 G4q@1 C5q@1 G4q@1 | F4q@3 A4q@4 C5h@1 | Bb4q@3 F4q@3 B4q@2 G4q@1 | C5q@1 Eb4q@5 F4h@3"
+}
+];
+BIB.push(...JAZZ_BIB.map(p => Object.assign({}, p, { n: p.n.replace(/@\d/g, '') })));
 const BIB_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const tokMidiW = (L, acc, oct) => (+oct + 1) * 12 + BIB_PC[L] + (acc === "#" ? 1 : acc === "b" ? -1 : 0);
 /* Vul ontbrekende posities aan met de laagste positie waarin de noot als natuurtoon ligt. */
@@ -2795,6 +2911,7 @@ async function importMusicXML(file) {
 }
 
 /* --- weergave --- */
+function bibTitle(p) { return p.t + (p.stijl === "bigband" ? " · bigband, swing" : p.stijl === "jazz" ? " · jazz, " + (p.feel === "ballad" ? "ballad, swing" : p.feel || "swing") : ""); }
 let bibFilter = "past";
 try { bibFilter = localStorage.getItem("bibfilter") || "past"; } catch (e) {}
 function bibItems() {
@@ -2806,7 +2923,7 @@ function renderBib() {
   const w = currentWeekIdx();
   document.querySelectorAll("[data-bibf]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.bibf === bibFilter)));
   const items = bibItems().map(p => Object.assign({ fit: bibFit(p, w) }, p))
-    .filter(p => bibFilter === "alle" || (bibFilter === "past" ? (p.fit.past || p.fit.nieuw.length <= 2) : p.imp))
+    .filter(p => bibFilter === "alle" || (bibFilter === "past" ? (p.fit.past || p.fit.nieuw.length <= 2) : bibFilter === "jazz" ? (p.stijl === "jazz" || p.stijl === "bigband") : p.imp))
     .sort((a, b) => (b.fit.past - a.fit.past) || (a.fit.nieuw.length - b.fit.nieuw.length));
   box.innerHTML = "";
   if (!items.length) {
@@ -2820,14 +2937,14 @@ function renderBib() {
     const head = document.createElement("div"); head.className = "bib-head";
     const tt = document.createElement("b"); tt.textContent = p.t;
     const chips = document.createElement("div"); chips.className = "bib-chips";
-    const st = document.createElement("span"); st.className = "chip idle"; st.textContent = p.stijl === "bigband" ? "bigband · swing" : p.stijl === "brassband" ? "brassband" : p.stijl === "eigen" ? "eigen stuk" : "traditioneel";
+    const st = document.createElement("span"); st.className = "chip idle"; st.textContent = p.stijl === "bigband" ? "bigband · swing" : p.stijl === "jazz" ? "jazz · " + (p.feel || "swing") : p.stijl === "brassband" ? "brassband" : p.stijl === "eigen" ? "eigen stuk" : "traditioneel";
     const fit = document.createElement("span"); fit.className = "chip" + (p.fit.past ? " ok" : "");
     fit.textContent = p.fit.past ? "Past nu" : p.fit.nieuw.length <= 2 ? (p.fit.nieuw.length === 1 ? "1 nieuwe noot" : "2 nieuwe noten") : p.fit.vanaf !== null ? "Vanaf week " + (p.fit.vanaf + 1) : "Nieuwe noten";
     chips.append(st, fit); head.append(tt, chips);
     const info = document.createElement("p"); info.className = "status";
     info.textContent = (p.fit.past ? "" : "Nieuw voor jou: " + p.fit.nieuw.map(writtenLabel).join(", ") + ". ") + (p.maat && p.maat !== "4/4" ? p.maat + " · " : "") + "♩ = " + p.bpm + (p.eigen ? " · eigen compositie" : "");
     const row = document.createElement("div"); row.className = "row";
-    const sc = { t: p.t + (p.stijl === "bigband" ? " · bigband, swing" : ""), n: withPositions(p.n), maat: p.maat, ak: p.ak };
+    const sc = { t: bibTitle(p), n: withPositions(p.n), maat: p.maat, ak: p.ak };
     const vp = document.createElement("button"); vp.textContent = "Voorspelen"; vp.setAttribute("aria-pressed", "false");
     vp.onclick = () => voorspelen(sc, p.bpm, vp);
     const mp = document.createElement("button"); mp.className = "primary"; mp.textContent = "Meespelen";
@@ -2900,7 +3017,7 @@ const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 function allPieces() {
   const out = [];
   LEERLIJN.forEach((w, wi) => w.blokken.forEach((b, bi) => b.sc.forEach((sc, i) => out.push({ id: pieceId(wi, bi, i), w: wi, titel: shortTitle(sc.t) || BLOKKEN[bi].naam, sc, bpm: pieceTempo(pieceId(wi, bi, i), wi) }))));
-  BIB.forEach(p => out.push({ id: "bib-" + p.id, w: null, titel: p.t, sc: { t: p.t + (p.stijl === "bigband" ? " · bigband, swing" : ""), n: withPositions(p.n), maat: p.maat, ak: p.ak }, bpm: p.bpm }));
+  BIB.forEach(p => out.push({ id: "bib-" + p.id, w: null, titel: p.t, sc: { t: bibTitle(p), n: withPositions(p.n), maat: p.maat, ak: p.ak }, bpm: p.bpm }));
   return out;
 }
 function findPiece(id) { return allPieces().find(p => p.id === id) || null; }
