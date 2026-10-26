@@ -237,6 +237,12 @@ button[aria-pressed="true"]#tuPlay, .pp button[aria-pressed="true"] { background
 .tu-cents { text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 2.2rem; font-variant-numeric: tabular-nums; min-height: 2.4rem; }
 .tu-cents.good { color: var(--ok); } .tu-cents.mid { color: var(--warn); } .tu-cents.off { color: var(--bad); }
 .tu-hint { text-align: center; min-height: 1.5em; font-weight: 700; }
+.mijlpalen { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.mijlpalen li { display: flex; gap: 10px; align-items: baseline; color: var(--muted); }
+.mijlpalen li::before { content: "○"; flex: none; width: 1.2em; text-align: center; }
+.mijlpalen li.ok { color: var(--ink); }
+.mijlpalen li.ok::before { content: "✓"; color: var(--ok); font-weight: 800; }
+.mijlpalen small { display: block; font-size: .8rem; color: var(--muted); }
 .rein-goal { text-align: center; margin: 12px 0 4px; font-size: 1.05rem; }
 #reinIv { flex-wrap: wrap; }
 #reinCard .tu-zone { left: 45%; width: 10%; }
@@ -362,6 +368,13 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <button class="ghost" id="manualBtn">Geoefend zonder app</button>
         <span class="status" id="saveStatus"></span>
       </div>
+    </div>
+    <div class="card" id="uitdagingCard">
+      <div class="row spread"><span class="eyebrow">Uitdaging van deze week</span><span class="chip" id="udChip"></span></div>
+      <p id="udText" style="margin:6px 0 8px;font-weight:700"></p>
+      <div class="progress"><i id="udBar"></i></div>
+      <p class="status" id="udHint"></p>
+      <p class="status goodtxt" id="mpNew" hidden></p>
     </div>
   </section>
 
@@ -567,6 +580,10 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <div class="check"><input type="checkbox" id="cpScale"><label for="cpScale">Toonladder C–C (klinkt Bes) strak op 80</label></div>
         <div class="check"><input type="checkbox" id="cpSight"><label for="cpSight">Een onbekend melodietje van blad gespeeld</label></div>
         <p class="muted" id="cpNext">Alle drie afgevinkt? Dan neem je contact op met de brassband over hun opleidingsgroep.</p>
+      </div>
+      <div class="card">
+        <div class="row spread"><h2>Mijlpalen</h2><span class="chip" id="mpChip"></span></div>
+        <ul class="mijlpalen" id="mpList"></ul>
       </div>
       <div class="card">
         <h2>Posities</h2>
@@ -1044,7 +1061,7 @@ function renderLog() {
   $("notesList").innerHTML = notes.length ? "" : '<li class="muted">Nog geen notities. Schrijf er een op na je sessie.</li>';
   notes.forEach(k => { const li = document.createElement("li"); const b = document.createElement("b"); b.textContent = parseKey(k).toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short" }); li.append(b, document.createElement("br"), document.createTextNode(log[k].notitie)); $("notesList").append(li); });
 }
-function renderAll() { renderWeek(); renderOpgave(); renderToday(); renderLog(); renderPieces(); if (!$("tab-trainer").hidden) renderTrainer(); }
+function renderAll() { renderWeek(); renderOpgave(); renderToday(); renderLog(); renderMijlpalen(); renderPieces(); if (!$("tab-trainer").hidden) renderTrainer(); }
 
 /* ===== OPSLAG ===== */
 function setStatus(t) { $("saveStatus").textContent = t; }
@@ -1052,7 +1069,7 @@ async function saveToday(patch) {
   await whenLoaded("log");
   const k = todayKey();
   const doc = Object.assign({ datum: k }, log[k] || {}, patch);
-  log[k] = doc; renderToday(); renderLog();
+  log[k] = doc; renderToday(); renderLog(); renderMijlpalen();
   if (!db) { setStatus("Niet opgeslagen: opslag niet bereikbaar"); return; }
   if (await queueWrite("log/" + k, doc)) setStatus("Opgeslagen");
 }
@@ -1073,7 +1090,7 @@ async function connectDb() {
   }, () => { $("dbStatus").textContent = "Verbinding met opslag verbroken. Herlaad de pagina."; });
   db.collection("log").onSnapshot(q => {
     if (q.metadata.fromCache && !loaded.log) return;
-    const next = {}; q.docs.forEach(d => { next[d.id] = Object.assign({}, d.data()); }); log = next; renderToday(); renderLog(); markLoaded("log");
+    const next = {}; q.docs.forEach(d => { next[d.id] = Object.assign({}, d.data()); }); log = next; renderToday(); renderLog(); markLoaded("log"); renderMijlpalen();
     const lt = log[todayKey()]?.trainer; if (tr && lt && lt.sec > tr.sec) tr = null;
     if (!$("tab-trainer").hidden) renderTrainerHead();
   }, () => { $("dbStatus").textContent = "Verbinding met opslag verbroken. Herlaad de pagina."; });
@@ -1082,7 +1099,7 @@ async function connectDb() {
   }, () => {});
   db.collection("voortgang").onSnapshot(q => {
     if (q.metadata.fromCache && !loaded.voortgang) return;
-    const next = {}; q.docs.forEach(d => { next[d.id] = Object.assign({}, d.data()); }); voortgang = next; markLoaded("voortgang");
+    const next = {}; q.docs.forEach(d => { next[d.id] = Object.assign({}, d.data()); }); voortgang = next; markLoaded("voortgang"); renderMijlpalen();
     renderPieceUis(); renderPieces();
     if (!sess.running && !metro.running) setBpm(blockTempo());
   }, () => {});
@@ -2387,7 +2404,7 @@ tuner.onTimed((r, t) => {
   const key = String(t.titel || "stuk").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "stuk";
   const today = log[todayKey()] || {}, rondes = Object.assign({}, today.rondes || {});
   const prev = rondes[key] || { t: t.titel, best: 0, keer: 0 };
-  rondes[key] = { t: t.titel, best: Math.max(prev.best, r.pct), laatste: r.pct, keer: prev.keer + 1, tempo: t.tempo };
+  rondes[key] = { t: t.titel, best: Math.max(prev.best, r.pct), laatste: r.pct, keer: prev.keer + 1, goed: (prev.goed || 0) + (r.pct >= 80 && t.pct === 100 ? 1 : 0), tempo: t.tempo };
   saveToday({ rondes });
   const full = t.full && t.from === 1 && t.to === t.full.sc.n.split("|").length && t.pct === 100;
   const meta = t.full && t.full.sc._meta;
@@ -2541,6 +2558,78 @@ $("reinRoot").onchange = () => { rein.root = +$("reinRoot").value; try { localSt
 $("reinBtn").onclick = () => reinToggle();
 tuner.onUpdate(reinUpdate);
 renderRein();
+
+
+/* ===== MIJLPALEN EN WEEKUITDAGING (#27) =====
+   Alles wordt afgeleid uit wat al bewaard is (log, voortgang, rondes, trainer); er komt geen nieuwe opslag bij,
+   alleen onthoudt dit toestel welke mijlpalen je al gezien hebt. Geen punten, geen meldingen. */
+function allDays() { return Object.keys(log).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k)).sort(); }
+function longestStreak() {
+  let best = 0, run = 0, prev = null;
+  allDays().filter(practiced).forEach(k => { run = prev && addDays(prev, 1) === k ? run + 1 : 1; best = Math.max(best, run); prev = k; });
+  return best;
+}
+function totals() {
+  const t = { dagen: 0, noten: 0, gehoor: 0, ritme: 0, rondes: 0, rond100: 0, blues: 0 };
+  allDays().forEach(k => {
+    const d = log[k] || {}, tr = d.trainer || {};
+    if (practiced(k)) t.dagen++;
+    t.noten += (tr.noten || [0])[0]; t.gehoor += (tr.gehoor || [0])[0]; t.ritme += (tr.ritme || [0])[0];
+    Object.values(d.rondes || {}).forEach(r => { t.rondes += r.keer || 0; if (r.best >= 100) t.rond100++; if (/blues|bar bones|shuffle/i.test(r.t || "") && r.best >= 80) t.blues++; });
+  });
+  return t;
+}
+function milestones() {
+  const t = totals(), streak = longestStreak();
+  const beheerst = Object.keys(voortgang).filter(id => { const m = /^w(\d+)-/.exec(id); return m && pieceStatus(id, +m[1] - 1).beheerst; }).length;
+  return [
+    { id: "start", naam: "Eerste sessie", ok: t.dagen >= 1, hint: "Doe een sessie van 10 minuten." },
+    { id: "week", naam: "7 dagen op rij", ok: streak >= 7, hint: "Langste reeks tot nu toe: " + streak + "." },
+    { id: "stuk", naam: "Eerste stuk beheerst", ok: beheerst >= 1, hint: "3 dagen op rij foutloos op tempo." },
+    { id: "tempo", naam: "Een ronde 100 % op tempo", ok: t.rond100 >= 1, hint: "Alle noten groen bij Op tempo spelen." },
+    { id: "blues", naam: "Eerste blues", ok: t.blues >= 1, hint: "Een blues of shuffle op tempo met 80 % groen." },
+    { id: "lezen", naam: "100 noten goed gelezen", ok: t.noten >= 100, hint: t.noten + " van 100." },
+    { id: "gehoor", naam: "25× goed nagespeeld op gehoor", ok: t.gehoor >= 25, hint: t.gehoor + " van 25." },
+    { id: "ladder", naam: "Toonladder strak op 80", ok: !!settings.scale, hint: "Vink hem af bij het checkpoint." },
+    { id: "dertig", naam: "30 oefendagen", ok: t.dagen >= 30, hint: t.dagen + " van 30." },
+    { id: "vijf", naam: "Vijf stukken beheerst", ok: beheerst >= 5, hint: beheerst + " van 5." }
+  ];
+}
+function weekStart(k) { const d = parseKey(k), wd = (d.getDay() + 6) % 7; return addDays(k, -wd); }
+function weekChallenge() {
+  const w = currentWeekIdx(), today = todayKey(), from = weekStart(today), days = [];
+  for (let i = 0; i < 7; i++) { const k = addDays(from, i); if (k <= today) days.push(k); }
+  const left = 6 - days.length + 1;
+  const kind = ["dagen", "stuk", "gehoor"][w % 3];
+  if (kind === "stuk") {
+    const b = LEERLIJN[w].blokken[2], sc = b.sc[b.sc.length > 1 ? 1 : 0], titel = shortTitle(sc.t) || "het stuk van deze week";
+    const slug = String(titel).toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+    const n = days.reduce((a, k) => a + (((log[k] || {}).rondes || {})[slug]?.goed || 0), 0);
+    return { kind, tekst: "Speel " + titel + " 3× op tempo met minstens 80 % groen", n, doel: 3, left, hint: "Spelen → stuk openen → Op tempo spelen. Telt alleen op vol tempo." };
+  }
+  if (kind === "gehoor") {
+    const n = days.reduce((a, k) => a + ((((log[k] || {}).trainer || {}).gehoor || [0])[0]), 0);
+    return { kind, tekst: "Speel 15 opgaven goed na op gehoor", n, doel: 15, left, hint: "Trainer → Naspelen op gehoor. Interval of motief maakt het spannender." };
+  }
+  const n = days.filter(practiced).length;
+  return { kind, tekst: "Oefen 5 van de 7 dagen deze week", n, doel: 5, left, hint: "Een sessie telt, ook een korte." };
+}
+function renderMijlpalen() {
+  const ms = milestones(), ok = ms.filter(m => m.ok);
+  $("mpChip").textContent = ok.length + " van " + ms.length;
+  $("mpList").innerHTML = ms.map(m => '<li class="' + (m.ok ? "ok" : "") + '"><span>' + m.naam + (m.ok ? "" : "<small>" + m.hint + "</small>") + "</span></li>").join("");
+  const ready = !!(loaded.log && loaded.voortgang);
+  let seen = null; try { seen = JSON.parse(localStorage.getItem("mijlpalen") || "null"); } catch (e) {}
+  if (!ready) seen = null;
+  const fresh = seen ? ok.filter(m => !seen.includes(m.id)) : [];
+  if (fresh.length) { $("mpNew").hidden = false; $("mpNew").textContent = "Nieuwe mijlpaal: " + fresh.map(m => m.naam).join(", ") + "!"; }
+  if (ready && (!seen || fresh.length)) try { localStorage.setItem("mijlpalen", JSON.stringify(ok.map(m => m.id))); } catch (e) {}
+  const c = weekChallenge(), done = c.n >= c.doel;
+  $("udText").textContent = c.tekst;
+  $("udChip").textContent = done ? "Gehaald ✓" : Math.min(c.n, c.doel) + " van " + c.doel; $("udChip").classList.toggle("ok", done);
+  $("udBar").style.width = Math.min(100, c.n / c.doel * 100) + "%";
+  $("udHint").textContent = done ? "Mooi. Volgende maandag komt er een nieuwe." : c.hint + (c.left <= 2 ? " Nog " + c.left + (c.left === 1 ? " dag." : " dagen.") : "");
+}
 
 tuner.onNote((written, cents) => { recordPosNote(written, cents); if (!$("tab-logboek").hidden) renderPositions(); });
 $("tuPlay").onclick = () => { const t = tuner.tk; if (t.sc) voorspelen(t.sc, t.tempo, $("tuPlay")); };
@@ -2822,6 +2911,7 @@ function buildReport() {
     "<h2>Op tempo gespeeld (toonhoogte én timing gemeten)</h2>" + (rondeRows ? "<table>" + rondeRows + "</table>" : "<p class=\"muted\">Nog niet op tempo gespeeld.</p>") +
     "<h2>Intonatie per schuifpositie</h2>" + (posRows ? "<table>" + posRows + "</table><p>" + esc(tune || (worst ? posAdvice(worst.p, worst.avg) : "Alle posities gemiddeld binnen 10 cent.")) + "</p>" : "<p class=\"muted\">Nog te weinig metingen.</p>") +
     "<h2>Checkpoint</h2><ul><li>" + (doneDays >= 45 ? "✓" : "○") + " 45 van 60 dagen geoefend (" + doneDays + ")</li><li>" + (settings.scale ? "✓" : "○") + " toonladder C–C (klinkt Bes) strak op 80</li><li>" + (settings.sight ? "✓" : "○") + " onbekend melodietje van blad</li></ul>" +
+    "<h2>Mijlpalen</h2><p>" + (milestones().filter(m => m.ok).map(m => "✓ " + esc(m.naam)).join(" · ") || "Nog geen.") + "</p>" +
     "<h2>Notities van de leerling</h2>" + (notes ? "<ul>" + notes + "</ul>" : "<p class=\"muted\">Geen notities.</p>") +
     "<h2>Opgave geven</h2><p>Stuur de leerling een van deze links terug (of pas het getal na @ aan voor een ander tempo). De opgave verschijnt dan bovenaan in de app.</p><ul>" + links + "</ul>" +
     "<p class=\"muted\">Gemaakt met Trombone Coach op " + fmt(todayKey()) + ".</p></body></html>";
