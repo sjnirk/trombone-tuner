@@ -188,6 +188,18 @@ a.linkbtn:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; 
 #miniMic[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); border-color: var(--brass); }
 @media (prefers-reduced-motion: reduce) { .live-bar i { transition: none; } }
 
+/* Posities */
+.poslist { display: flex; flex-direction: column; gap: 6px; }
+.posrow { display: grid; grid-template-columns: 2.4em 1fr 7.5em; gap: 8px; align-items: center; font-variant-numeric: tabular-nums; }
+.poslab { font-weight: 700; }
+.posbar { position: relative; height: 12px; border-radius: 6px; background: var(--line); }
+.posbar::after { content: ""; position: absolute; left: calc(50% - 1px); top: -3px; width: 2px; height: 18px; background: var(--muted); }
+.posbar i { position: absolute; top: 0; bottom: 0; border-radius: 6px; }
+.posbar i.good { background: var(--ok); } .posbar i.mid { background: var(--warn); } .posbar i.off { background: var(--bad); }
+.posval { font-size: .85rem; text-align: right; }
+.postip { font-weight: 700; }
+button[aria-pressed="true"]#tuPlay, .pp button[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); border-color: var(--brass); }
+
 /* Tuner */
 .tu-note { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-height: 8rem; }
 .tu-note b { font-family: var(--font-display); font-weight: 800; font-size: clamp(5.5rem, 32vw, 8.5rem); line-height: .9; }
@@ -350,6 +362,7 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <p class="status" id="tuHelp">Speel het stuk: de noot die aan de beurt is licht op en schuift door zodra je hem raakt. Elke geraakte noot kleurt naar hoe zuiver hij was.</p>
         <div class="tu-summary" id="tuSummary" hidden></div>
         <div class="row">
+          <button id="tuPlay" aria-pressed="false">Voorspelen</button>
           <button id="tuReset">Opnieuw</button>
           <button id="tuMetro" aria-pressed="false">Metronoom</button>
           <button class="ghost" id="tuClose">Sluit stuk</button>
@@ -452,6 +465,12 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <div class="check"><input type="checkbox" id="cpScale"><label for="cpScale">Toonladder C–C (klinkt Bes) strak op 80</label></div>
         <div class="check"><input type="checkbox" id="cpSight"><label for="cpSight">Een onbekend melodietje van blad gespeeld</label></div>
         <p class="muted" id="cpNext">Alle drie afgevinkt? Dan neem je contact op met de brassband over hun opleidingsgroep.</p>
+      </div>
+      <div class="card">
+        <h2>Posities</h2>
+        <p class="muted">Gemiddelde afwijking per schuifpositie over de laatste 14 dagen, gemeten met de microfoon. Gecorrigeerd voor de natuurlijke afwijking van de boventonen, dus wat overblijft ligt aan je schuif.</p>
+        <div class="poslist" id="posList"></div>
+        <p class="postip" id="posTip"></p>
       </div>
       <div class="card">
         <h2>Stukken</h2>
@@ -907,6 +926,7 @@ function renderLog() {
     cells += '<i class="' + cls + '" title="' + k + '"></i>';
   }
   $("grid60").innerHTML = cells;
+  renderPositions();
   let streak = 0; const c = new Date(); if (!practiced(dateKey(c))) c.setDate(c.getDate() - 1);
   while (practiced(dateKey(c))) { streak++; c.setDate(c.getDate() - 1); }
   $("statDays").textContent = done; $("statStreak").textContent = streak; $("statLeft").textContent = Math.max(0, 45 - done);
@@ -1236,8 +1256,10 @@ function buildPieceUi(meta, sc) {
   const dots = document.createElement("span"); dots.className = "dots"; dots.setAttribute("aria-hidden", "true"); dots.innerHTML = "<i></i><i></i><i></i>";
   const ok = document.createElement("button"); ok.className = "okbtn";
   const tl = document.createElement("button"); tl.textContent = "Meespelen"; tl.title = "Speel dit stuk mee met de tuner";
+  const vp = document.createElement("button"); vp.textContent = "Voorspelen"; vp.setAttribute("aria-pressed", "false"); vp.title = "Hoor hoe het stuk klinkt";
+  vp.onclick = () => voorspelen(sc, pieceTempo(meta.id, meta.w), vp);
   tl.onclick = () => tuner.openPiece(sc, meta.w, meta.titel, pieceTempo(meta.id, meta.w), true);
-  row.append(tempo, dots, ok, tl);
+  row.append(tempo, dots, ok, vp, tl);
   const msg = document.createElement("p"); msg.className = "status ppmsg";
   const act = document.createElement("div"); act.className = "row";
   el.append(row, msg, act);
@@ -1460,6 +1482,168 @@ $("toTrainer").onclick = () => document.querySelector('[data-tab="trainer"]').cl
 $("lettersToggle").onclick = () => { showLetters = !showLetters; try { localStorage.setItem("letters", showLetters ? "aan" : "uit"); } catch (e) {} renderLettersToggle(); rerenderScores(); };
 function renderLettersToggle() { $("lettersToggle").setAttribute("aria-pressed", String(showLetters)); $("lettersToggle").textContent = showLetters ? "Letters aan" : "Letters uit"; }
 
+/* ===== FEEDBACK PER POSITIE =====
+   Elke vaste noot (≥ 0,3 s) uit de tuner telt mee voor zijn positie. De natuurlijke afwijking
+   van de boventoon wordt eraf gehaald (5e boventoon ±14 cent laag, 3e en 6e ±2 hoog), zodat
+   alleen overblijft wat aan de schuif ligt. Opslag per dag in log/<datum>.pos = {positie: [som, aantal]}. */
+const PARTIAL_CENTS = { 12: 0, 19: 2, 24: 0, 28: -14, 31: 2, 36: 0 };
+const POS_WAAR = {
+  1: "helemaal ingeschoven",
+  2: "een klein stukje uit, ongeveer 8 cm",
+  3: "net vóór de rand van de beker",
+  4: "net voorbij de rand van de beker",
+  5: "ongeveer een handbreedte voorbij de beker",
+  6: "bijna je arm gestrekt",
+  7: "zo ver als je arm reikt"
+};
+function primaryPos(concert) {
+  for (let p = 1; p <= 7; p++) for (const iv of [12, 19, 24, 28, 31, 36]) if (34 - (p - 1) + iv === concert) return { p, iv };
+  return null;
+}
+let posToday = null, posTimer = null;
+function posState() {
+  const k = todayKey();
+  if (!posToday || posToday.datum !== k) {
+    const src = (log[k] && log[k].pos) || {};
+    posToday = { datum: k, pos: JSON.parse(JSON.stringify(src)) };
+  }
+  return posToday;
+}
+function recordPosNote(written, cents) {
+  const pp = primaryPos(written - 14);
+  if (!pp) return;
+  const c = Math.max(-60, Math.min(60, cents - PARTIAL_CENTS[pp.iv]));
+  const s = posState(), e = s.pos[pp.p] || (s.pos[pp.p] = [0, 0]);
+  e[0] += Math.round(c); e[1] += 1;
+  clearTimeout(posTimer);
+  posTimer = setTimeout(() => saveToday({ pos: JSON.parse(JSON.stringify(posState().pos)) }), 4000);
+}
+function posStats(days) {
+  const agg = {}, today = parseKey(todayKey());
+  Object.keys(log).forEach(k => {
+    if ((today - parseKey(k)) / 86400000 >= days) return;
+    const src = k === todayKey() && posToday && posToday.datum === k ? posToday.pos : log[k].pos;
+    if (!src) return;
+    Object.keys(src).forEach(p => { const a = agg[p] || (agg[p] = [0, 0]); a[0] += src[p][0]; a[1] += src[p][1]; });
+  });
+  if (posToday && !log[posToday.datum]) Object.keys(posToday.pos).forEach(p => { const a = agg[p] || (agg[p] = [0, 0]); a[0] += posToday.pos[p][0]; a[1] += posToday.pos[p][1]; });
+  return agg;
+}
+function posAdvice(p, avg) {
+  const dir = avg > 0 ? "te hoog" : "te laag";
+  if (+p === 1) return "Je 1e positie zit gemiddeld " + Math.abs(avg) + " cent " + dir + ". Die stel je niet met de schuif bij maar met de stembeugel: " + (avg > 0 ? "trek hem iets uit." : "duw hem iets in.");
+  return "Je " + p + "e positie zit gemiddeld " + Math.abs(avg) + " cent " + dir + ": " + (avg > 0 ? "schuif iets verder uit" : "schuif iets minder ver uit") + ". Richtpunt: " + POS_WAAR[p] + ".";
+}
+/* Zitten bijna alle posities dezelfde kant op ernaast, dan ligt het aan de stemming, niet aan de schuif. */
+function tuningAdvice(agg) {
+  const avgs = Object.keys(agg).filter(p => agg[p][1] >= 5).map(p => agg[p][0] / agg[p][1]);
+  if (avgs.length < 3) return "";
+  const up = avgs.filter(a => a > 10).length, down = avgs.filter(a => a < -10).length;
+  if (up >= avgs.length - 1 && up >= 3) return "Bijna al je posities zitten te hoog: je trombone staat waarschijnlijk te hoog gestemd. Trek de stembeugel iets uit en stem op de 1e positie.";
+  if (down >= avgs.length - 1 && down >= 3) return "Bijna al je posities zitten te laag: je trombone staat waarschijnlijk te laag gestemd. Duw de stembeugel iets in en stem op de 1e positie.";
+  return "";
+}
+function renderPositions() {
+  const box = $("posList"); if (!box) return;
+  const agg = posStats(14), cs = getComputedStyle(document.documentElement);
+  box.innerHTML = "";
+  let worst = null, any = false;
+  for (let p = 1; p <= 7; p++) {
+    const a = agg[p], row = document.createElement("div"); row.className = "posrow";
+    const lab = document.createElement("span"); lab.className = "poslab"; lab.textContent = p + "e";
+    const bar = document.createElement("span"); bar.className = "posbar";
+    const fill = document.createElement("i");
+    const val = document.createElement("span"); val.className = "posval";
+    if (a && a[1] >= 3) {
+      any = true;
+      const avg = Math.round(a[0] / a[1]), cls = Math.abs(avg) <= 10 ? "good" : Math.abs(avg) <= 25 ? "mid" : "off";
+      const w = Math.min(50, Math.abs(avg)) / 50 * 50;
+      fill.className = cls; fill.style.width = w + "%"; fill.style.left = avg >= 0 ? "50%" : (50 - w) + "%";
+      val.textContent = (avg > 0 ? "+" : avg < 0 ? "−" : "") + Math.abs(avg) + " · " + a[1] + "×";
+      if (Math.abs(avg) > 10 && a[1] >= 5 && (!worst || Math.abs(avg) > Math.abs(worst.avg))) worst = { p, avg };
+    } else { val.textContent = a ? "te weinig" : "–"; val.classList.add("muted"); }
+    bar.append(fill); row.append(lab, bar, val); box.append(row);
+  }
+  const tune = tuningAdvice(agg);
+  $("posTip").textContent = !any ? "Nog geen metingen. Speel met de microfoon aan (sessie of tuner); elke noot die je even vasthoudt telt mee."
+    : tune ? tune : worst ? posAdvice(worst.p, worst.avg) : "Al je posities zitten gemiddeld binnen 10 cent. Mooi zo.";
+}
+function roundPosTip(seq, hits) {
+  const per = {};
+  seq.forEach((s, i) => { const pp = primaryPos(s.midi - 14); if (!pp || hits[i] === undefined) return; const c = hits[i] - PARTIAL_CENTS[pp.iv]; (per[pp.p] = per[pp.p] || []).push(c); });
+  let worst = null;
+  Object.keys(per).forEach(p => { const l = per[p]; if (l.length < 2) return; const avg = Math.round(l.reduce((a, b) => a + b, 0) / l.length); if (Math.abs(avg) > 15 && (!worst || Math.abs(avg) > Math.abs(worst.avg))) worst = { p, avg }; });
+  return worst ? " Tip: " + posAdvice(worst.p, worst.avg) : "";
+}
+
+/* ===== VOORSPELEN =====
+   Speelt een stuk voor op klinkende toonhoogte (geschreven − 14 halve tonen), op het tempo van
+   het stuk, met één maat aftellen. Swing bij bigbandstukken (achtsten lang-kort, 2:1), recht
+   bij de rest. Noten onder een boog worden verbonden. De tuner luistert intussen niet mee. */
+const DUR_BEATS = { w: 4, hd: 3, h: 2, qd: 1.5, q: 1, "8": 0.5 };
+const voorspeel = { nodes: [], timer: null, btn: null };
+function parseForPlay(sc) {
+  const notes = []; let t = 0, inSlur = false, firstBar = null;
+  sc.n.split("|").forEach((bar, bi) => {
+    let barLen = 0;
+    bar.trim().split(/\s+/).filter(Boolean).forEach(tok => {
+      const r = REST_RX.exec(tok), m = NOTE_RX.exec(tok);
+      const d = DUR_BEATS[r ? r[1] : m[5]];
+      if (m) {
+        if (m[1]) inSlur = true;
+        const midi = (+m[4] + 1) * 12 + { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[2]] + (m[3] === "#" ? 1 : m[3] === "b" ? -1 : 0);
+        notes.push({ t, d, midi, slur: inSlur && !m[7] });
+        if (m[7]) inSlur = false;
+      }
+      t += d; barLen += d;
+    });
+    if (bi === 0) firstBar = barLen;
+  });
+  return { notes, total: t, firstBar };
+}
+function swingTime(b) { const whole = Math.floor(b), frac = b - whole; return Math.abs(frac - 0.5) < 1e-6 ? whole + 2 / 3 : b; }
+function brassNote(a, t0, dur, freq, vol) {
+  const o1 = a.createOscillator(), o2 = a.createOscillator(), lp = a.createBiquadFilter(), g = a.createGain();
+  o1.type = "sawtooth"; o2.type = "sawtooth"; o1.frequency.value = freq; o2.frequency.value = freq * 1.003;
+  lp.type = "lowpass"; lp.Q.value = 1.2;
+  lp.frequency.setValueAtTime(freq * 1.5, t0); lp.frequency.linearRampToValueAtTime(freq * 5, t0 + 0.07); lp.frequency.linearRampToValueAtTime(freq * 3.5, t0 + Math.min(dur, 0.35));
+  g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.04); g.gain.linearRampToValueAtTime(vol * 0.8, t0 + 0.15);
+  g.gain.setValueAtTime(vol * 0.8, t0 + Math.max(0.16, dur - 0.06)); g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+  o1.connect(lp); o2.connect(lp); lp.connect(g).connect(a.destination);
+  o1.start(t0); o2.start(t0); o1.stop(t0 + dur + 0.05); o2.stop(t0 + dur + 0.05);
+  voorspeel.nodes.push(o1, o2);
+}
+function stopVoorspelen() {
+  voorspeel.nodes.forEach(n => { try { n.stop(); } catch (e) {} });
+  voorspeel.nodes = []; clearTimeout(voorspeel.timer);
+  if (voorspeel.btn) { voorspeel.btn.textContent = "Voorspelen"; voorspeel.btn.setAttribute("aria-pressed", "false"); }
+  voorspeel.btn = null; tuner.setPaused(false);
+}
+function voorspelen(sc, tempo, btn) {
+  const again = voorspeel.btn === btn;
+  stopVoorspelen();
+  if (again) return;
+  const metroWas = metro.running; if (metroWas) metroStop();
+  if (typeof drone !== "undefined" && drone) stopDrone();
+  const a = audio(), spb = 60 / (tempo || 60), { notes, total, firstBar } = parseForPlay(sc);
+  const [nb] = (sc.maat || "4/4").split("/").map(Number), beats = nb || 4;
+  const swing = /swing/i.test(sc.t || ""), map = b => swing ? swingTime(b) : b;
+  const t0 = a.currentTime + 0.15;
+  for (let i = 0; i < beats; i++) blip(t0 + i * spb, i === 0 ? 1600 : 1000, 0.04, 0.35);
+  const pickup = firstBar && firstBar < beats ? firstBar : 0;
+  const start = t0 + (beats - pickup) * spb;
+  notes.forEach((n, i) => {
+    const on = map(n.t), next = i + 1 < notes.length ? map(notes[i + 1].t) : null;
+    let len = (Math.min(map(n.t + n.d), next ?? Infinity) - on);
+    len = n.slur ? len * 1.0 : len * 0.88;
+    brassNote(a, start + on * spb, Math.max(0.08, len * spb), 440 * Math.pow(2, (n.midi - 14 - 69) / 12), 0.16);
+  });
+  voorspeel.btn = btn;
+  if (btn) { btn.textContent = "Stop"; btn.setAttribute("aria-pressed", "true"); }
+  tuner.setPaused(true);
+  voorspeel.timer = setTimeout(() => { stopVoorspelen(); if (metroWas && sess.running && sess.useMetro) metroStart(); }, ((start - a.currentTime) + map(total) * spb + 0.4) * 1000);
+}
+
 /* ===== LIVE TUNER (tabblad) =====
    Luistert via de microfoon: geschreven noot in Bes, positie, afwijking in cent.
    Meespelen: een stuk uit de sessie wordt gevolgd noot voor noot. */
@@ -1474,7 +1658,14 @@ const tuner = (() => {
 
   let A4 = 440;
   try { const v = +localStorage.getItem("a4"); if (v >= 430 && v <= 450) A4 = v; } catch (e) {}
-  let actx = null, analyser = null, stream = null, raf = 0, wake = null, buf = null, hist = [], trace = [], lastShown = 0;
+  let actx = null, analyser = null, stream = null, raf = 0, wake = null, buf = null, hist = [], trace = [], lastShown = 0, paused = false, seg = null;
+  const noteListeners = [];
+  /* Een "vaste noot" = minstens 0,3 s dezelfde noot; die gaat naar de feedback per positie. */
+  function segFeed(r, now) {
+    if (r && seg && r.note === seg.note) { seg.cents.push(r.cents); seg.last = now; return; }
+    if (seg && seg.last - seg.start >= 300) { const c = median(seg.cents), w = seg.note + 14; noteListeners.forEach(f => { try { f(w, c); } catch (e) {} }); }
+    seg = r ? { note: r.note, start: now, last: now, cents: [r.cents] } : null;
+  }
   const N = 4096, yb = new Float32Array(N), d = new Float32Array(1024), dp = new Float32Array(1024);
   const tk = { titel: "", n: "", maat: "4/4", tempo: 60, showPos: true, seq: [], idx: 0, hits: [], holdStart: 0, holdCents: [], needRelease: false, lastHit: null, gapStart: 0, doel: null };
 
@@ -1536,10 +1727,10 @@ const tuner = (() => {
       hist.push(69 + 12 * Math.log2(f / A4)); if (hist.length > 5) hist.shift();
       const m = median(hist), note = Math.round(m), cents = Math.round((m - note) * 100);
       trace.push([now, cents]);
-      track({ note, cents }, now);
+      if (!paused) { track({ note, cents }, now); segFeed({ note, cents }, now); }
       if (now - lastShown > 60) { show({ note, cents }); renderTarget({ note, cents }); notify({ note, cents }); lastShown = now; }
     } else {
-      hist = []; track(null, now);
+      hist = []; if (!paused) { track(null, now); segFeed(null, now); }
       if (now - lastShown > 600) { show(null, true); notify(null); lastShown = now; }
     }
     trace = trace.filter(p => now - p[0] < 8000);
@@ -1641,7 +1832,8 @@ const tuner = (() => {
       const em = document.createElement("em"); em.textContent = (c > 0 ? "+" : "") + c;
       ch.append(b, em); chips.append(ch);
     });
-    sum.append(h, chips);
+    const tip = document.createElement("p"); tip.className = "status"; tip.textContent = roundPosTip(tk.seq, tk.hits).trim();
+    sum.append(h, chips, tip);
   }
   function drawPiece() {
     if (!tk.seq.length || $("tab-tuner").hidden) return;
@@ -1690,6 +1882,7 @@ const tuner = (() => {
     if (svg) svg.querySelectorAll("[fill],[stroke]").forEach(el => ["fill", "stroke"].forEach(a => { const v = (el.getAttribute(a) || "").toLowerCase(); if (v === "black" || v === "#000" || v === "#000000") el.setAttribute(a, ink); }));
     try { const el = curNote?.getSVGElement?.() || curNote?.getAttribute?.("el"); el?.scrollIntoView?.({ block: "nearest", inline: "center" }); } catch (e) {}
   }
+  function resetHold() { tk.holdStart = 0; tk.holdCents = []; }
   function resetPiece() { tk.idx = 0; tk.hits = []; tk.needRelease = false; tk.lastHit = null; tk.holdStart = 0; tk.holdCents = []; }
   const listeners = [];
   function notify(r) { listeners.forEach(f => { try { f(r); } catch (e) {} }); }
@@ -1698,7 +1891,7 @@ const tuner = (() => {
     const toks = sc.n.split(/[\s|]+/).filter(Boolean);
     if (!toks.every(t => NOTE_RX.test(t) || REST_RX.test(t))) return false;
     tk.n = sc.n; tk.maat = /^\d\/\d$/.test(sc.maat || "") ? sc.maat : "4/4"; tk.showPos = sc.pos !== false && showPos;
-    tk.titel = String(titel || "Oefening").slice(0, 80); tk.tempo = tempo || 60; tk.doel = null;
+    tk.titel = String(titel || "Oefening").slice(0, 80); tk.tempo = tempo || 60; tk.doel = null; tk.sc = sc;
     tk.seq = []; toks.forEach(t => { const m = NOTE_RX.exec(t); if (m) tk.seq.push({ midi: tokMidi(m[2], m[3], m[4]) }); });
     resetPiece();
     $("tuPieceTitle").textContent = tk.titel;
@@ -1713,7 +1906,7 @@ const tuner = (() => {
     const toks = sc.n.split(/[\s|]+/).filter(Boolean);
     if (!toks.every(t => NOTE_RX.test(t) || REST_RX.test(t))) return;
     tk.n = sc.n; tk.maat = /^\d\/\d$/.test(sc.maat || "") ? sc.maat : "4/4"; tk.showPos = sc.pos !== false && showPos;
-    tk.titel = String(titel || "Oefening").slice(0, 80); tk.tempo = tempo || 60; tk.doel = null;
+    tk.titel = String(titel || "Oefening").slice(0, 80); tk.tempo = tempo || 60; tk.doel = null; tk.sc = sc;
     tk.seq = []; toks.forEach(t => { const m = NOTE_RX.exec(t); if (m) tk.seq.push({ midi: tokMidi(m[2], m[3], m[4]) }); });
     resetPiece();
     $("tuPieceTitle").textContent = tk.titel;
@@ -1734,7 +1927,7 @@ const tuner = (() => {
   document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && analyser) { try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {} } });
   if (!navigator.mediaDevices?.getUserMedia) { $("tuStart").disabled = true; $("tuErr").textContent = "Deze browser ondersteunt geen microfoon. Open de app in Safari of Chrome."; }
   setA4(A4);
-  return { openPiece, openDoel, follow, target, restart, state, start: () => analyser ? Promise.resolve() : start(), onUpdate: f => listeners.push(f), stop, running, redraw() { drawPiece(); drawTrace(performance.now()); }, track, tk, positionsFor };
+  return { openPiece, openDoel, follow, target, restart, state, start: () => analyser ? Promise.resolve() : start(), onUpdate: f => listeners.push(f), onNote: f => noteListeners.push(f), setPaused: v => { paused = !!v; if (paused) { seg = null; resetHold(); } }, stop, running, redraw() { drawPiece(); drawTrace(performance.now()); }, track, tk, positionsFor };
 })();
 
 /* ===== MEELUISTEREN TIJDENS DE SESSIE =====
@@ -1772,7 +1965,7 @@ function renderLive(r) {
   if (st.total && st.done) {
     const hits = st.hits, good = hits.filter(c => Math.abs(c) <= 10).length;
     const avg = Math.round(hits.reduce((a, b) => a + b, 0) / hits.length);
-    $("liveRound").textContent = "Vorige ronde: " + good + " van " + hits.length + " noten zuiver, gemiddeld " + (avg > 0 ? "+" : "") + avg + " cent.";
+    $("liveRound").textContent = "Vorige ronde: " + good + " van " + hits.length + " noten zuiver, gemiddeld " + (avg > 0 ? "+" : "") + avg + " cent." + roundPosTip(tuner.tk.seq, hits);
     $("liveGoal").textContent = "Ronde klaar";
     $("liveMsg").className = "live-msg ok"; $("liveMsg").textContent = "Speel het stuk nog eens";
     if (Date.now() - roundShownAt > 1500) { roundShownAt = Date.now(); setTimeout(() => { if (tuner.state().done) tuner.restart(); }, 1500); }
@@ -1789,6 +1982,8 @@ function renderLive(r) {
 }
 function renderMicBtn() { $("miniMic").setAttribute("aria-pressed", String(sessMic)); $("miniMic").textContent = sessMic ? "Mic aan" : "Mic uit"; }
 tuner.onUpdate(renderLive);
+tuner.onNote((written, cents) => { recordPosNote(written, cents); if (!$("tab-logboek").hidden) renderPositions(); });
+$("tuPlay").onclick = () => { const t = tuner.tk; if (t.sc) voorspelen(t.sc, t.tempo, $("tuPlay")); };
 $("miniMic").onclick = () => {
   sessMic = !sessMic;
   try { localStorage.setItem("sessiemic", sessMic ? "aan" : "uit"); } catch (e) {}
