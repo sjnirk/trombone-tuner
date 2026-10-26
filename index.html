@@ -389,6 +389,7 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
           <p class="status" id="tuPracticeMsg" role="status"></p>
         </details>
         <div class="row">
+          <button class="primary" id="tuTimed" aria-pressed="false">Op tempo spelen</button>
           <button id="tuPlay" aria-pressed="false">Voorspelen</button>
           <button id="tuReset">Opnieuw</button>
           <button id="tuMetro" aria-pressed="false">Metronoom</button>
@@ -1299,7 +1300,7 @@ function buildPieceUi(meta, sc) {
   const tl = document.createElement("button"); tl.textContent = "Meespelen"; tl.title = "Speel dit stuk mee met de tuner";
   const vp = document.createElement("button"); vp.textContent = "Voorspelen"; vp.setAttribute("aria-pressed", "false"); vp.title = "Hoor hoe het stuk klinkt";
   vp.onclick = () => voorspelen(sc, pieceTempo(meta.id, meta.w), vp);
-  tl.onclick = () => tuner.openPiece(sc, meta.w, meta.titel, pieceTempo(meta.id, meta.w), true);
+  tl.onclick = () => tuner.openPiece(Object.assign({}, sc, { _meta: meta }), meta.w, meta.titel, pieceTempo(meta.id, meta.w), true);
   row.append(tempo, dots, ok, vp, tl);
   const msg = document.createElement("p"); msg.className = "status ppmsg";
   const act = document.createElement("div"); act.className = "row";
@@ -1731,6 +1732,7 @@ const tuner = (() => {
     loop();
   }
   function stop() {
+    if (timed.active) timedStop(false);
     cancelAnimationFrame(raf); raf = 0;
     stream?.getTracks().forEach(t => t.stop()); stream = null;
     actx?.close(); actx = null; analyser = null;
@@ -1745,7 +1747,8 @@ const tuner = (() => {
     const k = Math.max(1, Math.round(sr / 12000)), sr2 = sr / k, n = Math.floor(x.length / k);
     let rms = 0;
     for (let i = 0; i < n; i++) { let s = 0; for (let j = 0; j < k; j++) s += x[i * k + j]; yb[i] = s / k; rms += yb[i] * yb[i]; }
-    if (Math.sqrt(rms / n) < 0.006) return null;
+    lastRms = Math.sqrt(rms / n);
+    if (lastRms < 0.006) return null;
     const tauMin = Math.floor(sr2 / 800), tauMax = Math.min(Math.ceil(sr2 / 55), n - 1), W = Math.min(512, n - tauMax - 1);
     if (W < 128) return null;
     for (let tau = 1; tau <= tauMax; tau++) { let s = 0; for (let j = 0; j < W; j++) { const v = yb[j] - yb[j + tau]; s += v * v; } d[tau] = s; }
@@ -1768,10 +1771,12 @@ const tuner = (() => {
       hist.push(69 + 12 * Math.log2(f / A4)); if (hist.length > 5) hist.shift();
       const m = median(hist), note = Math.round(m), cents = Math.round((m - note) * 100);
       trace.push([now, cents]);
+      if (timed.active) timed.frames.push({ t: now, w: note + 14, c: cents, r: lastRms });
       if (!paused) { track({ note, cents }, now); segFeed({ note, cents }, now); }
       if (now - lastShown > 60) { show({ note, cents }); renderTarget({ note, cents }); notify({ note, cents }); lastShown = now; }
     } else {
-      hist = []; if (!paused) { track(null, now); segFeed(null, now); }
+      hist = []; if (timed.active) timed.frames.push({ t: now, w: null, c: 0, r: lastRms });
+      if (!paused) { track(null, now); segFeed(null, now); }
       if (now - lastShown > 600) { show(null, true); notify(null); lastShown = now; }
     }
     trace = trace.filter(p => now - p[0] < 8000);
@@ -1860,6 +1865,7 @@ const tuner = (() => {
     const sum = $("tuSummary");
     sum.hidden = !done; $("tuHelp").hidden = done;
     if (!done) return;
+    if (tk.timedSummary) { renderTimedSummary(sum, tk.timedSummary); return; }
     const avg = Math.round(tk.hits.reduce((a, b) => a + b, 0) / tk.hits.length), good = tk.hits.filter(c => Math.abs(c) <= 10).length;
     const byNote = {};
     tk.seq.forEach((s, i) => { (byNote[s.midi] = byNote[s.midi] || []).push(tk.hits[i]); });
@@ -1906,7 +1912,7 @@ const tuner = (() => {
           if (m[3]) note.addModifier(new VF.Accidental(m[3]), 0);
           if (dur.endsWith("d")) { if (VF.Dot && VF.Dot.buildAndAttach) VF.Dot.buildAndAttach([note], { all: true }); else if (note.addDotToAll) note.addDotToAll(); }
           if (m[6] && tk.showPos) { const a = new VF.Annotation(m[6]); a.setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM); note.addModifier(a, 0); }
-          const i = ni++, c = i < tk.idx ? col[cls(tk.hits[i])] : i === tk.idx ? cur : null;
+          const i = ni++, c = tk.grades ? col[tk.grades[i]] : timed.active ? (i === tk.idx ? cur : null) : i < tk.idx ? col[cls(tk.hits[i])] : i === tk.idx ? cur : null;
           if (c) note.setStyle({ fillStyle: c, strokeStyle: c });
           if (i === tk.idx) curNote = note;
           return note;
@@ -1924,8 +1930,150 @@ const tuner = (() => {
     if (svg) svg.querySelectorAll("[fill],[stroke]").forEach(el => ["fill", "stroke"].forEach(a => { const v = (el.getAttribute(a) || "").toLowerCase(); if (v === "black" || v === "#000" || v === "#000000") el.setAttribute(a, ink); }));
     try { const el = curNote?.getSVGElement?.() || curNote?.getAttribute?.("el"); el?.scrollIntoView?.({ block: "nearest", inline: "center" }); } catch (e) {}
   }
+  /* ===== OP TEMPO SPELEN (#20) =====
+     Eén maat aftellen, dan op tempo met klik. Elke noot wordt beoordeeld op toonhoogte én moment.
+     De vertraging van de meting (~75 ms) en van de speaker worden eraf gehaald. Herhaalde noten
+     moeten opnieuw aangezet worden. */
+  const LAT = 85;
+  let lastRms = 0;
+  /* Aanzet van een herhaalde noot: het volume zakt kort (tongstoot) en stijgt weer. Zoek de diepste dip
+     rond de verwachte inzet en de eerste frame daarna waar het volume weer is opgebouwd. */
+  function reattackOnset(F, lo, hi, midi, prevLevel) {
+    let minR = Infinity, minK = -1;
+    for (let k = 0; k < F.length; k++) { const f = F[k]; if (f.t < lo) continue; if (f.t > hi) break; if (f.r < minR) { minR = f.r; minK = k; } }
+    if (minK < 0 || !(minR < prevLevel * 0.7)) return null;
+    let peak = minR;
+    for (let k = minK; k < F.length && F[k].t <= hi + 250; k++) peak = Math.max(peak, F[k].r);
+    if (peak < minR * 1.3) return null;
+    const thr = minR + (peak - minR) * 0.5;
+    for (let k = minK; k < F.length && F[k].t <= hi + 250; k++) if (F[k].r >= thr && F[k].w === midi) return F[k].t;
+    return null;
+  }
+  const timed = { active: false, frames: [], notes: [], timers: [], tick: null, endAt: 0, startPerf: 0 };
+  function grade(off, cents) {
+    if (off === null) return "off";
+    const a = Math.abs(off), c = Math.abs(cents);
+    if (a <= 120 && c <= 25) return "good";
+    if (a <= 250 && c <= 50) return "mid";
+    return "off";
+  }
+  function timedEvaluate() {
+    const F = timed.frames;
+    timed.notes.forEach((n, i) => {
+      const lo = n.exp - 200 + LAT, hi = n.exp + Math.min(n.len * 0.8, 450) + LAT;
+      let onset = null, cents = [], reattack = true;
+      const prevSame = i > 0 && timed.notes[i - 1].midi === n.midi;
+      for (let k = 0; k < F.length; k++) {
+        const f = F[k];
+        if (f.t < lo) continue;
+        if (f.t > hi) break;
+        if (f.w === n.midi) {
+          if (onset === null) {
+            const prev = F[k - 1];
+            if (prev && prev.w === n.midi && prev.t >= lo - 120) reattack = false;
+            onset = f.t;
+          }
+          cents.push(f.c);
+        }
+      }
+      if (prevSame && onset !== null && !reattack) {
+        /* De vorige noot was dezelfde: kijk naar het volume. Niveau van de vorige noot = mediaan van zijn frames. */
+        const pn = timed.notes[i - 1], lv = F.filter(f => f.t >= pn.exp + LAT && f.t <= pn.exp + pn.len * 0.6 + LAT && f.w === n.midi).map(f => f.r);
+        const level = lv.length ? median(lv) : 0;
+        const ra = reattackOnset(F, n.exp - 200 + LAT, n.exp + 150 + LAT, n.midi, level);
+        if (ra !== null) { reattack = true; onset = ra; cents = F.filter(f => f.t >= ra && f.t <= hi && f.w === n.midi).map(f => f.c); }
+      }
+      if (onset === null || cents.length < 3) { n.res = { off: null, cents: null, grade: "off", why: "gemist" }; return; }
+      const off = Math.round(onset - LAT - n.exp), c = median(cents);
+      let g = grade(off, c), why = "";
+      if (!reattack) { g = g === "good" ? "mid" : g; why = "niet opnieuw aangezet"; }
+      else if (Math.abs(off) > 120) why = off > 0 ? "te laat (" + off + " ms)" : "te vroeg (" + (-off) + " ms)";
+      else if (Math.abs(c) > 25) why = (c > 0 ? "te hoog (+" : "te laag (") + c + " cent)";
+      n.res = { off, cents: c, grade: g, why };
+    });
+  }
+  function timedSummary() {
+    const N = timed.notes, total = N.length;
+    const good = N.filter(n => n.res.grade === "good").length;
+    const hit = N.filter(n => n.res.off !== null);
+    const onTime = hit.filter(n => Math.abs(n.res.off) <= 120).length, inTune = hit.filter(n => Math.abs(n.res.cents) <= 25).length;
+    const avgOff = hit.length ? Math.round(hit.reduce((a, n) => a + n.res.off, 0) / hit.length) : 0;
+    const perBar = {};
+    N.forEach(n => { if (n.res.grade !== "good") perBar[n.bar] = (perBar[n.bar] || 0) + (n.res.grade === "off" ? 2 : 1); });
+    const worstBar = Object.keys(perBar).sort((a, b) => perBar[b] - perBar[a])[0];
+    const probs = N.filter(n => n.res.grade !== "good").slice(0, 3).map(n => "maat " + n.bar + ": " + nameOf(n.midi) + " " + n.res.why);
+    return { total, good, pct: Math.round(good / total * 100), onTime: Math.round(onTime / total * 100), inTune: Math.round(inTune / total * 100), avgOff, worstBar: worstBar ? +worstBar : null, probs };
+  }
+  function timedStop(evaluate) {
+    timed.timers.forEach(clearTimeout); timed.timers = []; clearInterval(timed.tick);
+    const was = timed.active; timed.active = false; paused = false;
+    $("tuTimed").textContent = "Op tempo spelen"; $("tuTimed").setAttribute("aria-pressed", "false");
+    if (!was) return;
+    if (!evaluate) { tk.grades = null; tk.idx = 0; renderPiece(); return; }
+    timedEvaluate();
+    tk.grades = timed.notes.map(n => n.res.grade); tk.idx = tk.seq.length;
+    tk.hits = timed.notes.map(n => n.res.cents ?? 0);
+    const s = timedSummary();
+    tk.timedSummary = s;
+    renderPiece();
+    timedListeners.forEach(f => { try { f(s, tk); } catch (e) {} });
+  }
+  const timedListeners = [];
+  async function timedStart() {
+    if (timed.active) { timedStop(false); return; }
+    if (!tk.seq.length) return;
+    const a = audio();                                   /* klik en aftellen via de app-klok */
+    if (!analyser) { await start(); if (!analyser) return; }
+    if (typeof stopVoorspelen === "function") stopVoorspelen();
+    if (metro.running) metroStop();
+    const spb = 60 / tk.tempo, { notes, total, firstBar } = parseForPlay(tk.sc);
+    const beats = +(tk.maat.split("/")[0]) || 4, swing = /swing/i.test(tk.sc.t || ""), map = b => swing ? swingTime(b) : b;
+    const pickup = firstBar && firstBar < beats ? firstBar : 0;
+    const t0 = a.currentTime + 0.2, start0 = t0 + (beats - pickup) * spb;
+    for (let i = 0; i < beats; i++) blip(t0 + i * spb, i === 0 ? 1600 : 1000, 0.04, 0.4);
+    const endBeat = map(total), nClicks = Math.ceil(total);
+    for (let i = 0; i < nClicks; i++) { const bt = (i + (beats - pickup)) % beats; blip(start0 + i * spb, bt === 0 ? 1500 : 950, 0.03, 0.18); }
+    const outLat = (a.outputLatency || a.baseLatency || 0.02) * 1000;
+    const perf0 = performance.now() + (start0 - a.currentTime) * 1000 + outLat;
+    /* maatnummer per noot (t.o.v. het hele stuk) */
+    const barOf = []; let bi = 0, acc = 0, barStarts = [0];
+    tk.sc.n.split("|").forEach((bar, k) => { const len = bar.trim().split(/\s+/).filter(Boolean).reduce((s2, tok) => { const r = REST_RX.exec(tok), m = NOTE_RX.exec(tok); return s2 + DUR_BEATS[r ? r[1] : m[5]]; }, 0); acc += len; barStarts.push(acc); });
+    timed.notes = notes.map(n => {
+      while (bi < barStarts.length - 2 && n.t >= barStarts[bi + 1] - 1e-6) bi++;
+      const on = map(n.t), next = map(n.t + n.d);
+      return { midi: n.midi, exp: perf0 + on * spb * 1000, len: (next - on) * spb * 1000, bar: (tk.from || 1) + bi };
+    });
+    timed.frames = []; timed.active = true; paused = true; tk.grades = null; tk.timedSummary = null;
+    resetPiece(); renderPiece();
+    $("tuTimed").textContent = "Stop"; $("tuTimed").setAttribute("aria-pressed", "true");
+    $("tuHelp").textContent = "Eén maat aftellen, dan spelen op de klik.";
+    timed.tick = setInterval(() => {
+      const now = performance.now();
+      let idx = timed.notes.findIndex(n => now < n.exp + n.len);
+      if (idx < 0) idx = timed.notes.length;
+      if (idx !== tk.idx && now >= perf0 - 50) { tk.idx = idx; drawPiece(); $("tuProgress").textContent = Math.min(idx + 1, tk.seq.length) + " / " + tk.seq.length; }
+    }, 60);
+    timed.timers.push(setTimeout(() => timedStop(true), (start0 - a.currentTime) * 1000 + endBeat * spb * 1000 + 600));
+  }
+
+  function renderTimedSummary(sum, t) {
+    sum.innerHTML = "";
+    const h = document.createElement("b");
+    h.textContent = t.good + " van " + t.total + " noten goed (op tijd én zuiver): " + t.pct + " %.";
+    const d = document.createElement("p"); d.className = "status";
+    d.textContent = "Op tijd: " + t.onTime + " % · zuiver: " + t.inTune + " %" + (Math.abs(t.avgOff) > 40 ? " · je speelt gemiddeld " + Math.abs(t.avgOff) + " ms " + (t.avgOff > 0 ? "achter" : "voor") + " de tel" : "") + ".";
+    sum.append(h, d);
+    if (t.probs.length) { const pr = document.createElement("p"); pr.className = "status"; pr.textContent = "Let op: " + t.probs.join("; ") + "."; sum.append(pr); }
+    if (t.worstBar && t.pct < 90) {
+      const b = document.createElement("button"); b.textContent = "Oefen maat " + t.worstBar + " langzaam";
+      b.onclick = () => { tk.from = t.worstBar; tk.to = t.worstBar; tk.pct = Math.max(50, tk.pct - 20); tk.loop = true; tk.clean = 0; tk.msg = ""; tk.timedSummary = null; tk.grades = null; $("tuPractice").open = true; applyPractice(); };
+      sum.append(b);
+    }
+    const leg = document.createElement("p"); leg.className = "status"; leg.textContent = "Groen = op tijd en zuiver · oranje = net ernaast of niet opnieuw aangezet · rood = gemist of ver ernaast.";
+    sum.append(leg);
+  }
   function resetHold() { tk.holdStart = 0; tk.holdCents = []; }
-  function resetPiece() { tk.idx = 0; tk.hits = []; tk.needRelease = false; tk.lastHit = null; tk.holdStart = 0; tk.holdCents = []; }
+  function resetPiece() { tk.grades = null; tk.timedSummary = null; tk.idx = 0; tk.hits = []; tk.needRelease = false; tk.lastHit = null; tk.holdStart = 0; tk.holdCents = []; }
   const listeners = [];
   function notify(r) { listeners.forEach(f => { try { f(r); } catch (e) {} }); }
   function state() { return { target: currentTarget(), idx: tk.idx, total: tk.seq.length, done: tk.seq.length > 0 && tk.idx >= tk.seq.length, hits: tk.hits.slice() }; }
@@ -1937,6 +2085,8 @@ const tuner = (() => {
     tk.maat = /^\d\/\d$/.test(sc.maat || "") ? sc.maat : "4/4"; tk.showPos = sc.pos !== false && showPos;
     tk.titel = String(titel || "Oefening").slice(0, 80); tk.doel = null;
     tk.pct = 100; tk.from = 1; tk.to = sc.n.split("|").length; tk.loop = false; tk.clean = 0; tk.msg = "";
+    if (timed.active) timedStop(false);
+    $("tuHelp").textContent = "Meespelen: de noot die aan de beurt is licht op en schuift door zodra je hem raakt. Op tempo spelen: één maat aftellen, dan beoordeelt de app elke noot op toonhoogte én moment.";
     $("tuPieceTitle").textContent = tk.titel;
     $("tuPieceEyebrow").textContent = w !== undefined && w !== null ? "Week " + (w + 1) + " · meespelen" : "Meespelen";
     applyPractice();
@@ -1985,7 +2135,8 @@ const tuner = (() => {
   $("tuStart").onclick = () => analyser ? stop() : start();
   $("tuCalDown").onclick = () => setA4(A4 - 1);
   $("tuCalUp").onclick = () => setA4(A4 + 1);
-  $("tuReset").onclick = () => { resetPiece(); renderPiece(); };
+  $("tuReset").onclick = () => { if (timed.active) timedStop(false); resetPiece(); renderPiece(); };
+  $("tuTimed").onclick = () => timedStart();
   $("tuClose").onclick = closePiece;
   $("tuMetro").onclick = () => { if (metro.running) metroStop(); else { setBpm(tk.tempo); metroStart(); } renderPiece(); };
   $("tuPct").oninput = e => { tk.pct = +e.target.value; tk.tempo = Math.max(30, Math.round(tk.full.tempo * tk.pct / 100)); tk.clean = 0; tk.msg = ""; if (metro.running) setBpm(tk.tempo); renderPractice(); renderPiece(); };
@@ -1995,7 +2146,7 @@ const tuner = (() => {
   document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && analyser) { try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {} } });
   if (!navigator.mediaDevices?.getUserMedia) { $("tuStart").disabled = true; $("tuErr").textContent = "Deze browser ondersteunt geen microfoon. Open de app in Safari of Chrome."; }
   setA4(A4);
-  return { openPiece, openDoel, follow, target, restart, state, start: () => analyser ? Promise.resolve() : start(), practice: () => ({ sc: tk.sc, tempo: tk.tempo, from: tk.from, to: tk.to }), onUpdate: f => listeners.push(f), onNote: f => noteListeners.push(f), setPaused: v => { paused = !!v; if (paused) { seg = null; resetHold(); } }, stop, running, redraw() { drawPiece(); drawTrace(performance.now()); }, track, tk, positionsFor };
+  return { openPiece, openDoel, follow, target, restart, state, start: () => analyser ? Promise.resolve() : start(), practice: () => ({ sc: tk.sc, tempo: tk.tempo, from: tk.from, to: tk.to }), onTimed: f => timedListeners.push(f), timedNotes: () => timed.notes, timedFrames: () => timed.frames, timedActive: () => timed.active, timedFinish: () => timedStop(true), onUpdate: f => listeners.push(f), onNote: f => noteListeners.push(f), setPaused: v => { paused = !!v; if (paused) { seg = null; resetHold(); } }, stop, running, redraw() { drawPiece(); drawTrace(performance.now()); }, track, tk, positionsFor };
 })();
 
 /* ===== MEELUISTEREN TIJDENS DE SESSIE =====
@@ -2050,6 +2201,23 @@ function renderLive(r) {
 }
 function renderMicBtn() { $("miniMic").setAttribute("aria-pressed", String(sessMic)); $("miniMic").textContent = sessMic ? "Mic aan" : "Mic uit"; }
 tuner.onUpdate(renderLive);
+/* Uitslag van 'op tempo spelen' bewaren per stuk per dag; een vrijwel foutloze ronde op vol tempo
+   over het hele stuk telt als 'foutloos op tempo' voor de doorgaanregel. */
+tuner.onTimed((r, t) => {
+  const key = String(t.titel || "stuk").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "stuk";
+  const today = log[todayKey()] || {}, rondes = Object.assign({}, today.rondes || {});
+  const prev = rondes[key] || { t: t.titel, best: 0, keer: 0 };
+  rondes[key] = { t: t.titel, best: Math.max(prev.best, r.pct), laatste: r.pct, keer: prev.keer + 1, tempo: t.tempo };
+  saveToday({ rondes });
+  const full = t.full && t.from === 1 && t.to === t.full.sc.n.split("|").length && t.pct === 100;
+  const meta = t.full && t.full.sc._meta;
+  const red = (t.grades || []).filter(g => g === "off").length;
+  if (full && meta && r.pct >= 90 && !red) {
+    markFoutloos(meta);
+    const p = document.createElement("p"); p.className = "status goodtxt"; p.textContent = "Telt als ‘foutloos op tempo’ voor vandaag.";
+    $("tuSummary").append(p);
+  }
+});
 tuner.onNote((written, cents) => { recordPosNote(written, cents); if (!$("tab-logboek").hidden) renderPositions(); });
 $("tuPlay").onclick = () => { const t = tuner.tk; if (t.sc) voorspelen(t.sc, t.tempo, $("tuPlay")); };
 $("miniMic").onclick = () => {
