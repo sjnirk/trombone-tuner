@@ -3,406 +3,1603 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#11151B">
-<title>Trombone Tuner</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Trombone">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="description" content="Dagelijkse oefencoach en live tuner voor trombone in Bes (vioolsleutel).">
+<title>Trombone Coach</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@600;800&display=swap">
 <style>
-/* Eén scherm voor op de lessenaar: grote noot, naald, spoor van de laatste 8 seconden. */
+/* Layout: één smalle kolom voor op de lessenaar, grote tijd en bpm, tabbalk onderin. */
 :root {
-  --bg: #ECEFF3; --surface: #FFFFFF; --ink: #18202C; --muted: #586273; --line: #D3D9E1;
-  --brass: #B07A1E; --brass-ink: #855A0F; --brass-soft: #F4E6CB;
-  --ok: #2E7A55; --ok-soft: #D8EEE3; --warn: #A3610A; --bad: #B3261E;
+  --bg: #ECEFF3;
+  --surface: #FFFFFF;
+  --ink: #18202C;
+  --muted: #586273;
+  --line: #D3D9E1;
+  --brass: #B07A1E;
+  --brass-ink: #855A0F;
+  --brass-soft: #F4E6CB;
+  --ok: #2E7A55;
+  --ok-soft: #D8EEE3;
+  --warn: #A3610A;
+  --bad: #B3261E;
   --font-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
   --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
-  color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #11151B; --surface: #1A2029; --ink: #E7EBF1; --muted: #98A2B2; --line: #2A323E;
+  :root:not([data-theme="light"]) {
+    --bg: #11151B; --surface: #1A2029; --ink: #E7EBF1; --muted: #98A2B2; --line: #2A323E;
     --brass: #DDA645; --brass-ink: #E8B85E; --brass-soft: #3A2E18; --ok: #5BC08D; --ok-soft: #173326; --warn: #E9A23B; --bad: #F2766B;
-    color-scheme: dark; }
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151B; --surface: #1A2029; --ink: #E7EBF1; --muted: #98A2B2; --line: #2A323E;
+  --brass: #DDA645; --brass-ink: #E8B85E; --brass-soft: #3A2E18; --ok: #5BC08D; --ok-soft: #173326; --warn: #E9A23B; --bad: #F2766B;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
 body {
-  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.5;
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-top: max(16px, env(safe-area-inset-top, 0px)); padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: max(16px, env(safe-area-inset-top, 0px)); padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 main { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
-h1 { font-family: var(--font-display); font-weight: 800; font-size: 2rem; line-height: 1; margin: 0; }
+h1, h2 { font-family: var(--font-display); font-weight: 800; letter-spacing: .01em; line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 { font-size: 2.1rem; }
+h2 { font-size: 1.35rem; }
 p { margin: 0; }
-.muted { color: var(--muted); } .status { font-size: .85rem; color: var(--muted); }
 .eyebrow { font-size: .75rem; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); font-weight: 700; }
+.muted { color: var(--muted); }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .spread { justify-content: space-between; }
-button { font: inherit; font-weight: 700; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; min-height: 44px; cursor: pointer; }
+button {
+  font: inherit; font-weight: 700; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; min-height: 44px; cursor: pointer;
+}
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
 button.primary { background: var(--brass); border-color: var(--brass); color: #1A1204; }
-button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
-a { color: var(--brass-ink); font-weight: 700; }
+button.ghost { background: transparent; }
+button:disabled { opacity: .45; cursor: default; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--brass-soft); color: var(--brass-ink); font-weight: 700; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
 
-.note { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-height: 8.5rem; }
-.note b { font-family: var(--font-display); font-weight: 800; font-size: clamp(6rem, 34vw, 9rem); line-height: .9; }
-.note sub { font-family: var(--font-display); font-size: 2rem; color: var(--muted); }
-.pos { text-align: center; font-weight: 700; color: var(--brass-ink); min-height: 1.5em; }
-.meter { position: relative; height: 56px; }
-.scale { position: absolute; inset: 22px 0 auto; height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; }
-.scale .zone { position: absolute; left: 40%; width: 20%; top: 0; bottom: 0; background: var(--ok-soft); }
-.tick { position: absolute; top: 14px; width: 2px; height: 28px; background: var(--muted); left: calc(50% - 1px); }
-.needle { position: absolute; top: 6px; width: 6px; height: 44px; border-radius: 3px; background: var(--muted); left: calc(50% - 3px); transition: left .08s linear, background .2s; }
-.needle.good { background: var(--ok); } .needle.mid { background: var(--warn); } .needle.off { background: var(--bad); }
-.labels { display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-.cents { text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 2.2rem; font-variant-numeric: tabular-nums; min-height: 2.4rem; }
-.cents.good { color: var(--ok); } .cents.mid { color: var(--warn); } .cents.off { color: var(--bad); }
-.hint { text-align: center; min-height: 1.5em; font-weight: 700; }
-canvas { width: 100%; height: 110px; display: block; }
-.cal { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 5ch; text-align: center; }
-.idle .note b, .idle .cents { color: var(--line); }
-.target { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; min-height: 1.5em; font-weight: 700; }
-.target .tg { padding: 3px 10px; border-radius: 999px; background: var(--brass-soft); color: var(--brass-ink); }
-.target .ok { color: var(--ok); } .target .dir { color: var(--warn); }
+/* Header */
+.weeknav { display: flex; align-items: center; gap: 8px; }
+.weeknav button { min-width: 44px; padding: 8px; }
+.weektitle { flex: 1; min-width: 0; }
+
+/* Timer */
+.clock { font-family: var(--font-display); font-weight: 800; font-size: clamp(4.5rem, 24vw, 7rem); line-height: .9; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.blocks { display: grid; grid-template-columns: 3fr 3fr 4fr; gap: 6px; }
+.blk { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.blk .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.blk .bar i { display: block; height: 100%; width: 0; background: var(--brass); }
+.blk.done .bar i { background: var(--ok); }
+.blk span { font-size: .78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blk.active span { color: var(--ink); font-weight: 700; }
+.steps { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+.theory summary { cursor: pointer; display: flex; flex-direction: column; gap: 2px; list-style: none; }
+.theory summary::-webkit-details-marker { display: none; }
+.theory summary b { font-family: var(--font-display); font-size: 1.35rem; font-weight: 800; }
+.theory summary::after { content: "Tik om te lezen"; font-size: .8rem; color: var(--muted); }
+.theory[open] summary::after { content: ""; }
+.theorybody { display: flex; flex-direction: column; gap: 10px; max-width: 65ch; }
+.scores { display: flex; flex-direction: column; gap: 12px; }
 .score { overflow-x: auto; min-width: 0; }
 .score svg { display: block; }
-.summary { display: flex; flex-direction: column; gap: 6px; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { display: inline-flex; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: .85rem; font-variant-numeric: tabular-nums; }
-.chip b { font-weight: 700; } .chip.good em { color: var(--ok); } .chip.mid em { color: var(--warn); } .chip.off em { color: var(--bad); }
-.chip em { font-style: normal; font-weight: 700; }
-.big { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; }
-@media (prefers-reduced-motion: reduce) { .needle { transition: none; } }
+.score .label { font-weight: 700; font-size: .9rem; margin-bottom: 2px; }
+.score .fallback { font-variant-numeric: tabular-nums; color: var(--muted); }
+.pos { font-variant-numeric: tabular-nums; color: var(--brass-ink); font-weight: 700; }
+.donebox { background: var(--ok-soft); color: var(--ok); border-radius: 10px; padding: 12px; font-weight: 700; }
+
+/* Metronoom */
+.bpm { font-family: var(--font-display); font-weight: 800; font-size: 4.5rem; line-height: 1; font-variant-numeric: tabular-nums; text-align: center; }
+.beats { display: flex; justify-content: center; gap: 10px; }
+.beats i { width: 18px; height: 18px; border-radius: 50%; background: var(--line); transition: background .05s; }
+.beats i.on { background: var(--brass); }
+.beats i.on.accent { background: var(--brass-ink); transform: scale(1.15); }
+input[type=range] { width: 100%; accent-color: var(--brass); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; min-width: 48px; }
+.seg button[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); }
+.mini { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mini .val { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; min-width: 3ch; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Logboek */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stat b { font-family: var(--font-display); font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat span { font-size: .8rem; color: var(--muted); }
+.grid60 { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.grid60 i { aspect-ratio: 1; border-radius: 4px; background: var(--line); opacity: .5; max-width: 100%; }
+.grid60 i.past { opacity: 1; }
+.grid60 i.done { background: var(--ok); opacity: 1; }
+.grid60 i.today { outline: 2px solid var(--brass); outline-offset: 1px; opacity: 1; }
+.check { display: flex; gap: 10px; align-items: flex-start; }
+.check input { width: 22px; height: 22px; margin-top: 2px; accent-color: var(--ok); flex: none; }
+.check label { min-width: 0; }
+textarea, input[type=date] { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; width: 100%; }
+textarea { min-height: 70px; resize: vertical; }
+.notes { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.notes li { border-top: 1px solid var(--line); padding-top: 8px; }
+.status { font-size: .85rem; color: var(--muted); }
+
+select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; min-height: 44px; }
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.progress { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; background: var(--brass); }
+a.linkbtn { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 700; text-decoration: none; }
+a.linkbtn:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+.drone[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); border-color: var(--brass); }
+
+/* Doorgaan-regel */
+.pp { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px dashed var(--line); margin-top: 4px; }
+.pp button { min-height: 40px; padding: 8px 12px; }
+.pp .tempo { font-variant-numeric: tabular-nums; }
+.dots { display: inline-flex; gap: 5px; }
+.dots i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); }
+.dots i.on { background: var(--ok); border-color: var(--ok); }
+.goodtxt { color: var(--ok); } .warntxt { color: var(--warn); } .badtxt { color: var(--bad); }
+.chip.warn { background: var(--brass-soft); color: var(--warn); }
+.chip.idle { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.pieces { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pieces li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.pieces li span:first-child { min-width: 0; }
+.pieces li .chip { flex: none; }
+
+/* Trainer */
+.quiznote svg { margin: 0 auto; }
+.quizfb { font-weight: 700; min-height: 1.5em; }
+.answers { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+.answers button { font-size: 1.05rem; }
+.answers button.right { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
+.answers button.wrong { background: transparent; color: var(--bad); border-color: var(--bad); }
+.tapzone { min-height: 120px; font-family: var(--font-display); font-size: 2rem; font-weight: 800; background: var(--brass-soft); color: var(--brass-ink); border: 2px dashed var(--brass); touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.tapzone:disabled { opacity: .6; }
+.tapzone.flash { animation: flash .18s ease-out; }
+@keyframes flash { from { background: var(--brass); color: #1A1204; } to { background: var(--brass-soft); } }
+.progress i#trBar { transition: width .3s; }
+
+/* Tuner */
+.tu-note { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-height: 8rem; }
+.tu-note b { font-family: var(--font-display); font-weight: 800; font-size: clamp(5.5rem, 32vw, 8.5rem); line-height: .9; }
+.tu-note sub { font-family: var(--font-display); font-size: 2rem; color: var(--muted); }
+.tu-pos { text-align: center; font-weight: 700; color: var(--brass-ink); min-height: 1.5em; }
+.tu-meter { position: relative; height: 56px; }
+.tu-scale { position: absolute; inset: 22px 0 auto; height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; }
+.tu-zone { position: absolute; left: 40%; width: 20%; top: 0; bottom: 0; background: var(--ok-soft); }
+.tu-tick { position: absolute; top: 14px; width: 2px; height: 28px; background: var(--muted); left: calc(50% - 1px); }
+.tu-needle { position: absolute; top: 6px; width: 6px; height: 44px; border-radius: 3px; background: var(--muted); left: calc(50% - 3px); transition: left .08s linear, background .2s; }
+.tu-needle.good { background: var(--ok); } .tu-needle.mid { background: var(--warn); } .tu-needle.off { background: var(--bad); }
+.tu-labels { display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tu-cents { text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 2.2rem; font-variant-numeric: tabular-nums; min-height: 2.4rem; }
+.tu-cents.good { color: var(--ok); } .tu-cents.mid { color: var(--warn); } .tu-cents.off { color: var(--bad); }
+.tu-hint { text-align: center; min-height: 1.5em; font-weight: 700; }
+.tu-target { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; min-height: 1.5em; font-weight: 700; }
+.tu-target .tg { padding: 3px 10px; border-radius: 999px; background: var(--brass-soft); color: var(--brass-ink); }
+.tu-target .ok { color: var(--ok); } .tu-target .dir { color: var(--warn); }
+.tu-trace { width: 100%; height: 110px; display: block; }
+.tu-cal { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 5ch; text-align: center; }
+.tu-idle .tu-note b, .tu-idle .tu-cents { color: var(--line); }
+.tu-score { overflow-x: auto; min-width: 0; }
+.tu-score svg { display: block; }
+.tu-big { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; }
+.tu-summary { display: flex; flex-direction: column; gap: 6px; }
+.tu-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tu-chip { display: inline-flex; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.tu-chip b { font-weight: 700; } .tu-chip em { font-style: normal; font-weight: 700; }
+.tu-chip.good em { color: var(--ok); } .tu-chip.mid em { color: var(--warn); } .tu-chip.off em { color: var(--bad); }
+#tuMetro[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); border-color: var(--brass); }
+@media (prefers-reduced-motion: reduce) { .tu-needle { transition: none; } }
+
+label.filebtn { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; cursor: pointer; }
+label.filebtn:focus-within { outline: 3px solid var(--brass); outline-offset: 2px; }
+
+/* Tabbalk */
+nav.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+}
+nav.tabs div { max-width: 520px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+nav.tabs button { border: 0; background: transparent; color: var(--muted); padding: 10px 2px; font-size: .8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var(--brass-soft); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
+
 <main>
-  <div class="row spread">
-    <div><p class="eyebrow">Trombone in Bes · vioolsleutel</p><h1>Live tuner</h1></div>
-    <button class="primary" id="startBtn">Start microfoon</button>
-  </div>
-
-  <div class="card idle" id="tunerCard">
-    <div class="note"><b id="noteName">–</b><sub id="noteOct"></sub></div>
-    <p class="pos" id="posText">Druk op Start en speel een lange toon</p>
-    <div class="meter" aria-hidden="true">
-      <div class="scale"><div class="zone"></div></div>
-      <div class="tick"></div>
-      <div class="needle" id="needle"></div>
+  <header class="weeknav">
+    <button class="ghost" id="prevWeek" aria-label="Vorige week">‹</button>
+    <div class="weektitle">
+      <p class="eyebrow" id="weekEyebrow">Week 1 van 8</p>
+      <h1 id="weekTitle">Eerste klank</h1>
     </div>
-    <div class="labels"><span>−50 te laag</span><span>0</span><span>te hoog +50</span></div>
-    <div class="cents" id="centsText"></div>
-    <p class="hint" id="hintText"></p>
-    <div class="target" id="targetLine" hidden></div>
-  </div>
+    <button class="ghost" id="nextWeek" aria-label="Volgende week">›</button>
+  </header>
 
-  <div class="card" id="pieceCard" hidden>
-    <div class="row spread">
-      <div><p class="eyebrow" id="pieceEyebrow">Uit je app</p><b class="big" id="pieceTitle"></b></div>
-      <span class="status" id="pieceProgress"></span>
+  <!-- VANDAAG -->
+  <section id="tab-vandaag" class="tabpanel" style="display:flex;flex-direction:column;gap:16px">
+    <div class="card">
+      <div class="row spread">
+        <span class="eyebrow" id="blockLabel">Blok 1 · Lange tonen</span>
+        <span class="chip" id="todayChip">Nog niet geoefend</span>
+      </div>
+      <div class="clock" id="clock">3:00</div>
+      <div class="blocks" id="blocks"></div>
+      <div class="row">
+        <button class="primary" id="startBtn">Start sessie</button>
+        <button id="skipBtn">Volgend blok</button>
+        <button class="ghost" id="resetBtn">Opnieuw</button>
+      </div>
+      <div class="mini">
+        <span class="muted">Metronoom</span>
+        <button id="miniMinus" aria-label="Langzamer">−</button>
+        <span class="val" id="miniBpm">60</span>
+        <button id="miniPlus" aria-label="Sneller">+</button>
+        <button id="miniToggle" aria-pressed="true">Klik aan</button>
+        <button class="drone" id="miniDrone" aria-pressed="false">Stemtoon</button>
+        <button id="miniTuner">Tuner</button>
+      </div>
+      <div id="doneBox" class="donebox" hidden>Sessie klaar en opgeslagen. Morgen weer.</div>
     </div>
-    <div class="score" id="pieceScore"></div>
-    <p class="status" id="pieceHelp">Speel het stuk: de noot die aan de beurt is licht op en schuift door zodra je hem raakt. Elke geraakte noot kleurt naar hoe zuiver hij was.</p>
-    <div class="summary" id="pieceSummary" hidden></div>
-    <div class="row"><button id="pieceReset">Opnieuw</button></div>
-  </div>
 
-  <div class="card">
-    <div class="row spread">
-      <span>Stemming A =</span>
-      <div class="row"><button id="calDown" aria-label="Lager">−</button><span class="cal" id="calText">440</span><button id="calUp" aria-label="Hoger">+</button></div>
+    <div class="card">
+      <div class="row spread">
+        <h2 id="stepsTitle">Wat je nu speelt</h2>
+        <div class="row">
+          <button class="ghost" id="posToggle" aria-pressed="true">Posities aan</button>
+          <button class="ghost" id="lettersToggle" aria-pressed="false">Letters uit</button>
+        </div>
+      </div>
+      <div class="scores" id="scores"></div>
+      <ul class="steps" id="steps"></ul>
     </div>
-    <p class="status">Noten staan geschreven zoals op jouw blad (Bes-notatie): een geschreven C klinkt als Bes. Leg de telefoon op de lessenaar, ongeveer een meter voor de beker. Alles blijft op je telefoon: er wordt niets opgenomen, opgeslagen of verstuurd.</p>
-    <p class="status" id="errText" role="alert"></p>
-  </div>
+
+    <details class="card theory" id="theory">
+      <summary><span class="eyebrow">Theorie</span> <b id="theoryTitle"></b></summary>
+      <div class="theorybody" id="theoryBody"></div>
+    </details>
+
+    <div class="card">
+      <div class="check">
+        <input type="checkbox" id="notenCheck">
+        <label for="notenCheck"><b>5 minuten noten en ritme</b>, zonder trombone<br><span class="muted" id="notenText"></span></label>
+      </div>
+      <label class="eyebrow" for="noteField">Notitie van vandaag</label>
+      <textarea id="noteField" placeholder="Wat ging goed, wat was lastig?"></textarea>
+      <button id="toTrainer" style="align-self:flex-start">Naar de trainer</button>
+      <div class="row spread">
+        <button class="ghost" id="manualBtn">Geoefend zonder app</button>
+        <span class="status" id="saveStatus"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- TUNER -->
+  <section id="tab-tuner" class="tabpanel" hidden>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card tu-idle" id="tuCard">
+        <div class="row spread">
+          <span class="eyebrow">Live tuner · noten in Bes</span>
+          <button class="primary" id="tuStart">Start microfoon</button>
+        </div>
+        <div class="tu-note"><b id="tuName">–</b><sub id="tuOct"></sub></div>
+        <p class="tu-pos" id="tuPos">Druk op Start en speel een lange toon</p>
+        <div class="tu-meter" aria-hidden="true">
+          <div class="tu-scale"><div class="tu-zone"></div></div>
+          <div class="tu-tick"></div>
+          <div class="tu-needle" id="tuNeedle"></div>
+        </div>
+        <div class="tu-labels"><span>−50 te laag</span><span>0</span><span>te hoog +50</span></div>
+        <div class="tu-cents" id="tuCents"></div>
+        <p class="tu-hint" id="tuHint"></p>
+        <div class="tu-target" id="tuTarget" hidden></div>
+        <p class="status" id="tuErr" role="alert"></p>
+      </div>
+
+      <div class="card" id="tuPiece" hidden>
+        <div class="row spread">
+          <div><p class="eyebrow" id="tuPieceEyebrow">Meespelen</p><b class="tu-big" id="tuPieceTitle"></b></div>
+          <span class="status" id="tuProgress"></span>
+        </div>
+        <div class="tu-score" id="tuScore"></div>
+        <p class="status" id="tuHelp">Speel het stuk: de noot die aan de beurt is licht op en schuift door zodra je hem raakt. Elke geraakte noot kleurt naar hoe zuiver hij was.</p>
+        <div class="tu-summary" id="tuSummary" hidden></div>
+        <div class="row">
+          <button id="tuReset">Opnieuw</button>
+          <button id="tuMetro" aria-pressed="false">Metronoom</button>
+          <button class="ghost" id="tuClose">Sluit stuk</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row spread"><b>Laatste 8 seconden</b><span class="status" id="tuSteady"></span></div>
+        <canvas class="tu-trace" id="tuTrace" role="img" aria-label="Afwijking in cent over de laatste 8 seconden"></canvas>
+        <p class="status">Groene band = binnen 10 cent. Een rechte lijn betekent een stabiele toon.</p>
+      </div>
+
+      <div class="card">
+        <div class="row spread">
+          <span>Stemming A =</span>
+          <div class="row"><button id="tuCalDown" aria-label="Lager">−</button><span class="tu-cal" id="tuCal">440</span><button id="tuCalUp" aria-label="Hoger">+</button></div>
+        </div>
+        <p class="status">Leg de telefoon op de lessenaar, ongeveer een meter voor de beker. Er wordt niets opgenomen of verstuurd; de microfoon is alleen aan zolang je hem aanzet.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRAINER -->
+  <section id="tab-trainer" class="tabpanel" hidden>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card">
+        <div class="row spread"><h2>Noten en ritme</h2><span class="chip" id="trChip">0 van 5 min</span></div>
+        <div class="progress"><i id="trBar"></i></div>
+        <p class="muted" id="trWeekNote"></p>
+        <p class="status">Na 5 minuten wordt ‘noten en ritme’ voor vandaag vanzelf afgevinkt.</p>
+      </div>
+      <div class="card">
+        <div class="row spread">
+          <h2>Noten lezen</h2>
+          <div class="seg" role="group" aria-label="Antwoord met"><button data-qmode="naam">Naam</button><button data-qmode="positie">Positie</button></div>
+        </div>
+        <div class="score quiznote" id="quizNote"></div>
+        <p class="quizfb" id="quizFb" aria-live="polite"></p>
+        <div class="answers" id="quizAnswers"></div>
+        <p class="status" id="quizStats"></p>
+      </div>
+      <div class="card">
+        <h2>Ritme meetikken</h2>
+        <p class="muted">Druk op Start. Na vier tikken vooraf tik je mee op elke noot, niet op de rusten. Recht spelen, zonder swing.</p>
+        <div class="score" id="rhScore"></div>
+        <button class="tapzone" id="tapZone" disabled>Tik hier</button>
+        <div class="row">
+          <button class="primary" id="rhStart">Start</button>
+          <button id="rhListen">Luister eerst</button>
+          <button class="ghost" id="rhNext">Ander ritme</button>
+        </div>
+        <p class="quizfb" id="rhFb" aria-live="polite"></p>
+        <p class="status" id="rhStats"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- METRONOOM -->
+  <section id="tab-metronoom" class="tabpanel" hidden>
+    <div class="card">
+      <div class="bpm" id="bigBpm">60</div>
+      <p class="muted" style="text-align:center">slagen per minuut</p>
+      <div class="beats" id="beats"></div>
+      <input type="range" id="bpmRange" min="40" max="160" value="60" aria-label="Tempo">
+      <div class="row" style="justify-content:center">
+        <button id="m5">−5</button><button id="m1">−1</button><button id="p1">+1</button><button id="p5">+5</button>
+      </div>
+      <div class="row spread">
+        <div class="seg" role="group" aria-label="Maatsoort">
+          <button data-meter="2">2/4</button><button data-meter="3">3/4</button><button data-meter="4">4/4</button>
+        </div>
+        <button id="tapBtn">Tik tempo</button>
+      </div>
+      <button class="primary" id="metroBtn">Start metronoom</button>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>Stemtoon</h2>
+      <p class="muted">Speel een lange toon mee met de stemtoon. Hoor je een trilling (zweving), dan zit je er net naast: schuif heel licht tot de trilling verdwijnt.</p>
+      <div class="row">
+        <label class="vh" for="droneNote">Noot</label>
+        <select id="droneNote"></select>
+        <button class="drone" id="droneBtn" aria-pressed="false">Speel stemtoon</button>
+      </div>
+      <p class="status">Geschreven noot in Bes. De stemtoon klinkt zoals jouw trombone hoort te klinken (A = 440 Hz).</p>
+    </div>
+  </section>
+
+  <!-- LOGBOEK -->
+  <section id="tab-logboek" class="tabpanel" hidden>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card">
+        <h2>Checkpoint na 2 maanden</h2>
+        <div class="stats">
+          <div class="stat"><b id="statDays">0</b><span>van 60 dagen geoefend</span></div>
+          <div class="stat"><b id="statStreak">0</b><span>dagen op rij</span></div>
+          <div class="stat"><b id="statLeft">45</b><span>nog nodig voor 45</span></div>
+        </div>
+        <div class="grid60" id="grid60" aria-label="60 oefendagen"></div>
+        <div class="check"><input type="checkbox" id="cpDays" disabled><label for="cpDays">Minstens 45 van de 60 dagen geoefend</label></div>
+        <div class="check"><input type="checkbox" id="cpScale"><label for="cpScale">Toonladder C–C (klinkt Bes) strak op 80</label></div>
+        <div class="check"><input type="checkbox" id="cpSight"><label for="cpSight">Een onbekend melodietje van blad gespeeld</label></div>
+        <p class="muted" id="cpNext">Alle drie afgevinkt? Dan neem je contact op met de brassband over hun opleidingsgroep.</p>
+      </div>
+      <div class="card">
+        <h2>Stukken</h2>
+        <p class="muted">Drie dagen op rij foutloos op tempo is beheerst. Lukt dat twee weken niet, dan gaat het tempo 10 omlaag.</p>
+        <ul class="pieces" id="piecesList"></ul>
+      </div>
+      <div class="card">
+        <h2>Notities</h2>
+        <ul class="notes" id="notesList"></ul>
+      </div>
+      <div class="card">
+        <label class="eyebrow" for="startDate">Startdatum leerlijn</label>
+        <input type="date" id="startDate">
+        <p class="status" id="dbStatus">Opslag openen…</p>
+      </div>
+      <div class="card">
+        <h2>Backup</h2>
+        <p class="muted">Je log, voortgang en notities staan alleen op dit toestel, nergens online. Bewaar af en toe een backup, bijvoorbeeld in Bestanden of iCloud Drive. Met dezelfde backup zet je alles over naar een ander toestel.</p>
+        <div class="row">
+          <button id="bkSave">Bewaar backup</button>
+          <label class="filebtn">Backup terugzetten<input type="file" id="bkFile" class="vh" accept="application/json,.json"></label>
+        </div>
+        <p class="status" id="bkStatus"></p>
+      </div>
+    </div>
+  </section>
 </main>
+
+<nav class="tabs" aria-label="Onderdelen">
+  <div role="tablist">
+    <button role="tab" data-tab="vandaag" aria-selected="true">Vandaag</button>
+    <button role="tab" data-tab="tuner" aria-selected="false">Tuner</button>
+    <button role="tab" data-tab="trainer" aria-selected="false">Trainer</button>
+    <button role="tab" data-tab="metronoom" aria-selected="false">Tempo</button>
+    <button role="tab" data-tab="logboek" aria-selected="false">Logboek</button>
+  </div>
+</nav>
 
 <script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.3/build/cjs/vexflow-bravura.js"></script>
 <script>
+/* ===== LEERLIJN =====
+   Alles in vioolsleutel in Bes: geschreven C klinkt als Bes.
+   Notenschrift per oefening in `sc`:
+     noot  = letter, eventueel # of b, octaaf, duur, @positie   bv. F#4h@2
+     duur  = w (hele), hd (gepunteerde halve), h (halve), qd, q (kwart), 8 (achtste)
+     rust  = Rw, Rh, Rq, R8      maatstreep = |      legato = ( ... )
+   `pos: false` verbergt de posities (voor blad lezen). */
+const TOONLADDER_KWART = "C4q@1 D4q@6 E4q@4 F4q@3 | G4q@1 A4q@4 B4q@2 C5q@1 | C5q@1 B4q@2 A4q@4 G4q@1 | F4q@3 E4q@4 D4q@6 C4q@1";
+const LEERLIJN = [
+  { titel: "Eerste klank", bpm: 60,
+    blokken: [
+      { tekst: ["30 seconden buzzen op alleen het mondstuk, als een sirene op en neer.", "Speel de G, rust een maat, en herhaal tot de tijd om is.", "Let op een volle, rustige klank. Mondhoeken stevig, wangen niet bol."],
+        sc: [{ n: "G4w@1 | Rw | G4w@1 | Rw" }] },
+      { tekst: ["Elke noot een hele maat. Schuif ontspannen vanuit de elleboog, pols los."],
+        sc: [{ n: "G4w@1 | F#4w@2 | F4w@3 | E4w@4" }] },
+      { tekst: ["Twee stijlen met dezelfde vier noten. De shuffle swingt: speel de achtsten lang-kort, als ‘doe-ba’. Het koraal speel je recht en verbonden."],
+        sc: [{ t: "Slow Shuffle · bigband, swing", n: "G4q@1 G48@1 F48@3 E4h@4 | G4q@1 F#48@2 F48@3 E4h@4 | Rq E48@4 F48@3 G4q@1 F#4q@2 | G4w@1" }, { t: "Eerste koraal · brassband, recht en legato", n: "G4h@1 F4h@3 | E4h@4 F4h@3 | G4h@1 F#4h@2 | G4w@1" }] }
+    ],
+    theorie: { titel: "Waarom ‘C’ klinkt als Bes", tekst: ["In de brassband is de trombone een <b>transponerend instrument</b>: je leest een C, maar er klinkt een Bes. Zo lezen alle Bes-instrumenten (kornet, bariton, euphonium) dezelfde noten met dezelfde grepen.", "De <b>vioolsleutel</b> krult om de tweede lijn: daar staat de G. Vanaf die G tel je omhoog en omlaag.", "Een trombone heeft geen kleppen. Per positie speel je een reeks <b>natuurtonen</b>: C, G en hoge C liggen allemaal in de 1e positie, je lippen kiezen welke klinkt. De schuif verlaagt die hele reeks per positie een halve toon."] },
+    noten: "De notenbalk: lijnen E-G-B-D-F, vakken F-A-C-E. Klap hele en halve noten op 60." },
+  { titel: "Lager", bpm: 60,
+    blokken: [
+      { tekst: ["Buzzen 30 seconden.", "Na elke lange toon een maat rust."],
+        sc: [{ n: "G4w@1 | Rw | F4w@3 | Rw | E4w@4 | Rw" }] },
+      { tekst: ["De boog betekent legato: niet tongen, alleen je lippen verplaatsen. Langzaam.", "Daarna drie nieuwe posities."],
+        sc: [{ t: "Lipslur", n: "(C4h@1 G4h@1) | (G4h@1 C4h@1)" }, { t: "Posities", n: "E4w@4 | Eb4w@5 | D4w@6" }] },
+      { tekst: ["Een lage blues met de blue note E♭: swing de achtsten lang-kort, als ‘doe-ba’, en tel de rusten hardop mee. Dan een mars: elke noot kort en precies, zonder swing."],
+        sc: [{ t: "Low Down · bigband, swing", n: "C4q@1 Eb48@5 C48@1 Rh | C4q@1 Eb48@5 E48@4 G4h@1 | F4q@3 F#48@2 G48@1 Rh | E4q@4 Eb48@5 D48@6 C4h@1" }, { t: "Kleine mars · brassband, recht en kort", n: "C4q@1 C4q@1 E4q@4 G4q@1 | G4h@1 E4h@4 | F4q@3 F4q@3 D4q@6 F4q@3 | E4q@4 D4q@6 C4h@1" }] }
+    ],
+    theorie: { titel: "Maat, tel en rust", tekst: ["Een <b>4/4-maat</b> heeft vier kwartnoten. Een hele noot duurt 4 tellen, een halve 2, een kwart 1 en een achtste een halve tel.", "Rusten hebben dezelfde waarden. Een hele rust hangt onder de vierde lijn, een halve rust ligt op de middelste lijn.", "<b>Tongen</b> (‘toe’) geeft elke noot een begin. Een <b>boog</b> over noten betekent legato: alleen de eerste noot tongen, de rest verbinden. Op trombone doe je legato met je lippen of een heel zachte ‘doe’."] },
+    noten: "Hulplijnen onder de balk: C en D. Klap kwartnoten en tel hardop 1 2 3 4." },
+  { titel: "De toonladder", bpm: 60,
+    blokken: [
+      { tekst: ["Buzzen 30 seconden.", "Chromatisch omlaag door alle zeven posities."],
+        sc: [{ n: "G4w@1 | F#4w@2 | F4w@3 | E4w@4 | Eb4w@5 | D4w@6 | C#4w@7" }] },
+      { tekst: ["Lipslurs in 1e en 2e positie."],
+        sc: [{ n: "(C4h@1 G4h@1) | (G4h@1 C4h@1) | (B3h@2 F#4h@2) | (F#4h@2 B3h@2)" }] },
+      { tekst: ["Eerst de toonladder, die heb je nodig voor het checkpoint. Dan je eerste echte blues: 12 maten, het schema van bijna alle jazz. Swing: speel de achtsten lang-kort, als ‘doe-ba’. Tel de rusten hardop mee."],
+        sc: [{ t: "Toonladder (klinkt Bes)", n: "C4w@1 | D4w@6 | E4w@4 | F4w@3 | G4w@1 | A4w@4 | B4w@2 | C5w@1" }, { t: "Twelve Bar Bones · bigband, swing", n: "C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | F4q@3 F48@3 Eb48@5 C4h@1 | F4q@3 F48@3 Eb48@5 C4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | G4q@1 G48@1 F48@3 E4h@4 | F4q@3 F48@3 Eb48@5 C4h@1 | C4q@1 Eb48@5 E48@4 G4h@1 | C4w@1" }] }
+    ],
+    theorie: { titel: "De toonladder en de blues", tekst: ["Een <b>majeurtoonladder</b> heeft altijd dezelfde stappen: heel – heel – half – heel – heel – heel – half. Op C kom je zo uit zonder kruizen of mollen.", "Het <b>12-maten bluesschema</b> gebruikt drie akkoorden: I (C), IV (F) en V (G). Vier maten I, twee maten IV, twee maten I, dan V, IV, I en I. Bijna alle bigbandblues volgt dit schema.", "Je eerste blues gebruikt een riff op C en schuift voor F en G mee met het akkoord."] },
+    noten: "Lees alle noten van lage C tot hoge C. Ritme: hele, halve en kwartnoten door elkaar." },
+  { titel: "Eerste melodie", bpm: 60,
+    blokken: [
+      { tekst: ["Buzzen 30 seconden.", "Drie tonen in 1e positie."],
+        sc: [{ n: "C4w@1 | G4w@1 | C5w@1" }] },
+      { tekst: ["Lipslurs over drie tonen."],
+        sc: [{ n: "(C4h@1 G4h@1) | (C5h@1 G4h@1) | C4w@1 | (B3h@2 F#4h@2) | (B4h@2 F#4h@2) | B3w@2" }] },
+      { tekst: ["Blues met hoge C en B♭, dan When the Saints. Swing: speel de achtsten lang-kort, als ‘doe-ba’. Tel de rusten hardop mee."],
+        sc: [{ t: "Up To C · bigband, swing", n: "C48@1 E48@4 G48@1 Bb48@3 C5q@1 Bb4q@3 | C48@1 E48@4 G48@1 Bb48@3 C5q@1 Bb4q@3 | F4q@3 A4q@4 Bb4q@3 A4q@4 | G4q@1 Bb4q@3 G48@1 F48@3 E4q@4 | C4w@1" }, { t: "When the Saints · traditional, recht of swing", n: "Rq C4q@1 E4q@4 F4q@3 | G4w@1 | Rq C4q@1 E4q@4 F4q@3 | G4w@1 | Rq C4q@1 E4q@4 F4q@3 | G4h@1 E4h@4 | C4h@1 E4h@4 | D4w@6 | Rq C4q@1 E4q@4 F4q@3 | G4h@1 E4h@4 | C4h@1 D4h@6 | C4w@1" }] }
+    ],
+    theorie: { titel: "Kruis, mol en blue notes", tekst: ["Een <b>kruis ♯</b> maakt een noot een halve toon hoger (F wordt Fis), een <b>mol ♭</b> een halve toon lager (B wordt Bes, E wordt Es). Een <b>herstellingsteken ♮</b> heft dat weer op.", "Een voorteken geldt tot het einde van de maat.", "<b>Blue notes</b> zijn de verlaagde terts (Es), kwint (Fis/Ges) en septiem (Bes). Ze geven de blues zijn kleur, juist omdat ze ‘net niet’ in de majeurtoonladder passen."] },
+    noten: "Kruis en mol: wat F♯ en E♭ betekenen. Ritme: rusten tellen." },
+  { titel: "Vloeiend", bpm: 66,
+    blokken: [
+      { tekst: ["Buzzen 30 seconden.", "Elke lange toon zacht beginnen, groeien, en weer zacht eindigen."],
+        sc: [{ n: "G4w@1 | G4w@1 | C4w@1 | C4w@1" }] },
+      { tekst: ["Lipslurs in 1e, 2e en 3e positie."],
+        sc: [{ n: "(C4h@1 G4h@1) | (B3h@2 F#4h@2) | (Bb3h@3 F4h@3) | (F4h@3 Bb3h@3)" }] },
+      { tekst: ["De bluestoonladder, dan een walking line: elke kwartnoot even lang, als een contrabas.", "Daarna Amazing Grace in 3/4, de eerste maat is een opmaat van één tel. Zing het in je hoofd en verbind de noten."],
+        sc: [{ t: "Bluestoonladder", n: "C4q@1 Eb4q@5 F4q@3 F#4q@2 | G4q@1 Bb4q@3 C5h@1 | C5q@1 Bb4q@3 G4q@1 F#4q@2 | F4q@3 Eb4q@5 C4h@1" }, { t: "Walking Bones · bigband, swing", n: "C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | F4q@3 A4q@4 C5q@1 A4q@4 | F4q@3 A4q@4 C5q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | C4q@1 E4q@4 G4q@1 A4q@4 | G4q@1 F4q@3 E4q@4 D4q@6 | F4q@3 A4q@4 C5q@1 A4q@4 | C4q@1 E4q@4 G4q@1 E4q@4 | C4w@1" }, { t: "Amazing Grace · brassband, 3/4, legato (vereenvoudigd)", maat: "3/4", n: "D4q@6 | G4h@1 B48@2 G48@1 | B4h@2 A4q@4 | G4h@1 E4q@4 | D4h@6 D4q@6 | G4h@1 B48@2 G48@1 | B4h@2 A4q@4 | G4h@1" }] }
+    ],
+    theorie: { titel: "Bluestoonladder, 3/4 en opmaat", tekst: ["De <b>bluestoonladder</b> op C: C – Es – F – Fis – G – Bes – C. Zes noten, en elke noot klinkt goed over het hele bluesschema.", "In <b>3/4</b> tel je drie kwarten per maat: 1-2-3, met de nadruk op 1. Walsen, veel hymnes en Amazing Grace staan in 3/4.", "Een <b>opmaat</b> is een onvolledige eerste maat. Bij Amazing Grace begin je op tel 3; de laatste maat is daarom ook korter."] },
+    noten: "Maatsoorten 4/4 en 3/4. Ritme: de gepunteerde noot." },
+  { titel: "Tong", bpm: 72,
+    blokken: [
+      { tekst: ["Buzzen 30 seconden.", "Elke noot aanzetten met ‘toe’, kort en duidelijk."],
+        sc: [{ n: "G4q@1 G4q@1 G4q@1 G4q@1 | Rw | C4q@1 C4q@1 C4q@1 C4q@1 | Rw" }] },
+      { tekst: ["Snellere lipslurs in 1e positie."],
+        sc: [{ n: "(C4q@1 G4q@1 C5q@1 G4q@1) | (C4q@1 G4q@1 C5q@1 G4q@1) | C4w@1" }] },
+      { tekst: ["Bluestoonladder op 72 met duidelijke tong, dan een riff die op de achterkant van de tel begint, en een koraal waarin je vooral luistert naar je klank. In de riff swing je de achtsten lang-kort; het koraal speel je recht."],
+        sc: [{ t: "Bluestoonladder", n: "C4q@1 Eb4q@5 F4q@3 F#4q@2 | G4q@1 Bb4q@3 C5h@1 | C5q@1 Bb4q@3 G4q@1 F#4q@2 | F4q@3 Eb4q@5 C4h@1" }, { t: "Offbeat · bigband, swing", n: "Rq G48@1 Bb48@3 C5q@1 G4q@1 | Bb4q@3 G48@1 F48@3 Eb4q@5 C4q@1 | Rq G48@1 Bb48@3 C5q@1 G4q@1 | F4q@3 Eb48@5 C48@1 C4h@1" }, { t: "Tweede koraal · brassband, recht en legato", n: "C4h@1 E4h@4 | G4h@1 F4h@3 | E4h@4 D4h@6 | C4w@1 | E4h@4 G4h@1 | A4h@4 G4h@1 | F4h@3 D4h@6 | C4w@1" }] }
+    ],
+    theorie: { titel: "Swing, recht en dynamiek", tekst: ["In <b>swing</b> zijn twee achtsten ongelijk: de eerste lang, de tweede kort, ongeveer als een triool van 2 + 1. Op papier staan ze gewoon als achtsten. In de <b>brassband</b> speel je ze precies gelijk.", "Een <b>syncope</b> legt de nadruk naast de tel, bijvoorbeeld een noot die op ‘en’ begint. Daar komt het opzwepende gevoel vandaan.", "<b>Dynamiek</b>: p (zacht), mp, mf, f (luid). <b>Crescendo</b> is geleidelijk luider, <b>decrescendo</b> zachter. In een koraal is dynamiek belangrijker dan snelheid."] },
+    noten: "Herhalingstekens lezen. Ritme: achtste noten, tel 1-en-2-en." },
+  { titel: "Uit het hoofd", bpm: 80,
+    blokken: [
+      { tekst: ["Buzzen 30 seconden.", "Lange tonen op de drieklank."],
+        sc: [{ n: "C4w@1 | E4w@4 | G4w@1 | C5w@1" }] },
+      { tekst: ["Lipslurs in 1e tot en met 4e positie."],
+        sc: [{ n: "(C4h@1 G4h@1) | (B3h@2 F#4h@2) | (Bb3h@3 F4h@3) | (A3h@4 E4h@4)" }] },
+      { tekst: ["Toonladder en bluestoonladder op 80 uit het hoofd. Dan een blues met call-and-response: jij speelt, de rust antwoordt. Swing: speel de achtsten lang-kort, als ‘doe-ba’. Tel de rusten hardop mee."],
+        sc: [{ t: "Toonladder", n: TOONLADDER_KWART }, { t: "Call And Response · bigband, swing", n: "C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh | C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh | F4q@3 Rq Ab48@5 A48@4 C5q@1 | F4h@3 Rh | C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh | G4q@1 Rq F48@3 E48@4 D4q@6 | F4q@3 Rq Ab48@5 A48@4 C5q@1 | C4q@1 Rq Eb48@5 E48@4 G4q@1 | C4h@1 Rh" }] }
+    ],
+    theorie: { titel: "Drieklanken en akkoordsymbolen", tekst: ["Een <b>drieklank</b> is grondtoon, terts en kwint: C – E – G. Dat zijn de noten die je in week 7 als lange tonen speelt.", "In een bigbandpartij staan vaak <b>akkoordsymbolen</b> zoals C7, F7 en G7. De 7 betekent dat er een kleine septiem bij komt (bij C7 is dat Bes).", "<b>Call-and-response</b> is een vraag en een antwoord: een frase, dan een rust of een andere groep die antwoordt. Je hoort het in blues, gospel en elke bigband."] },
+    noten: "Blad lezen: lees elke dag 4 maten van een liedje dat je niet kent." },
+  { titel: "Checkpoint", bpm: 80,
+    blokken: [
+      { tekst: ["Buzzen 30 seconden.", "Lange tonen op je zwakste noot van deze week."], sc: [] },
+      { tekst: ["Lipslurs naar keuze uit de vorige weken."], sc: [] },
+      { tekst: ["De gewone toonladder op 80, strak met de metronoom: dat is je checkpoint.", "Dan een tune die je nog nooit hebt gezien, zonder posities. Speel hem mee met de tuner (knop Meespelen) en vink het checkpoint af als je hem in één keer haalt."],
+        sc: [{ t: "Toonladder (checkpoint)", n: TOONLADDER_KWART }, { t: "Van blad", pos: false, n: "Rq E48 G48 Bb4q A4q | G4h Eb4h | Rq C48 Eb48 F4q F#4q | G4w | Rq G48 Bb48 C5q Bb4q | G4q F4q Eb4h | Rq C48 E48 G4q E4q | C4w" }] }
+    ],
+    theorie: { titel: "Klaar voor de band", tekst: ["Een brassband heeft drie trombones: twee tenortrombones in vioolsleutel en een <b>bastrombone</b> in bassleutel. Als beginner speel je meestal 2e trombone.", "Een bigband heeft meestal vier trombones en die lezen <b>bassleutel in C</b>. Ga je die kant op, dan leer je later ook bassleutel lezen. Dezelfde posities, andere namen op papier.", "Bij het eerste bezoek aan een band: vraag naar het opleidingsorkest, neem je eigen mondstuk mee en zeg eerlijk hoe lang je speelt."] },
+    noten: "Blad lezen en ritmes klappen van een nieuw stuk." }
+];
+const BLOKKEN = [ { naam: "Lange tonen", min: 3 }, { naam: "Lipslurs en posities", min: 3 }, { naam: "Oefening", min: 4 } ];
+
+/* ===== HULP ===== */
 const $ = id => document.getElementById(id);
-const NAMES = ["C", "Cis", "D", "Es", "E", "F", "Fis", "G", "As", "A", "Bes", "B"];
-/* Natuurtonen van de tenortrombone (concert, MIDI) per positie: grondtoon Bes1 = 34. */
-const PARTIALS = [12, 19, 24, 28, 31, 36];
-function positionsFor(concert) {
-  const out = [];
-  for (let p = 1; p <= 7; p++) for (const iv of PARTIALS) if (34 - (p - 1) + iv === concert) out.push(p);
-  return out;
+const pad = n => String(n).padStart(2, "0");
+const dateKey = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+const parseKey = k => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+const dayDiff = (a, b) => Math.round((parseKey(b) - parseKey(a)) / 86400000);
+const todayKey = () => dateKey(new Date());
+
+/* ===== STATE ===== */
+let db = null;
+const loaded = {};
+const waiters = {};
+function markLoaded(k) { loaded[k] = true; (waiters[k] || []).forEach(f => f()); waiters[k] = []; }
+function whenLoaded(k) { return !db || loaded[k] ? Promise.resolve() : new Promise(r => { (waiters[k] = waiters[k] || []).push(r); setTimeout(r, 8000); }); }
+let settings = { start: todayKey(), scale: false, sight: false };
+let log = {};            // datum -> document
+let viewWeek = null;     // null = automatisch
+
+function currentWeekIdx() {
+  const d = Math.max(0, dayDiff(settings.start, todayKey()));
+  return Math.min(LEERLIJN.length - 1, Math.floor(d / 7));
 }
-let A4 = 440;
-try { const v = +localStorage.getItem("a4"); if (v >= 430 && v <= 450) A4 = v; } catch (e) {}
+function weekIdx() { return viewWeek ?? currentWeekIdx(); }
 
-let ctx = null, analyser = null, stream = null, raf = 0, wake = null;
-const N = 4096;
-let buf = null, hist = [], trace = [];
-
-async function start() {
-  $("errText").textContent = "";
-  /* Safari staat geluid alleen toe als de AudioContext direct in de tik wordt gemaakt. */
-  ctx = new (window.AudioContext || window.webkitAudioContext)();
-  ctx.resume?.();
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-  } catch (e) {
-    $("errText").textContent = e && e.name === "NotAllowedError"
-      ? "Geen toegang tot de microfoon. Sta de microfoon toe voor deze site in je browserinstellingen en probeer het opnieuw."
-      : "De microfoon kon niet worden gestart. Sluit andere apps die de microfoon gebruiken en probeer het opnieuw.";
-    ctx.close(); ctx = null;
-    return;
+/* ===== AUDIO / METRONOOM ===== */
+let ctx = null;
+function audio() {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === "suspended") ctx.resume();
+  return ctx;
+}
+function blip(time, freq, len = 0.04, vol = 0.5) {
+  const a = audio(), o = a.createOscillator(), g = a.createGain();
+  o.frequency.value = freq; o.type = "square";
+  g.gain.setValueAtTime(vol, time); g.gain.exponentialRampToValueAtTime(0.001, time + len);
+  o.connect(g).connect(a.destination); o.start(time); o.stop(time + len + 0.01);
+}
+function chime(times = 1) {
+  const a = audio();
+  for (let i = 0; i < times; i++) { blip(a.currentTime + i * 0.35, 880, 0.25, 0.35); blip(a.currentTime + i * 0.35 + 0.12, 1320, 0.25, 0.25); }
+}
+const metro = { bpm: 60, meter: 4, running: false, beat: 0, next: 0, timer: null };
+function metroStart() {
+  const a = audio(); metro.running = true; metro.beat = 0; metro.next = a.currentTime + 0.08;
+  metro.timer = setInterval(metroTick, 25); renderMetro();
+}
+function metroStop() { metro.running = false; clearInterval(metro.timer); renderMetro(); flashBeat(-1); }
+function metroTick() {
+  const a = audio();
+  while (metro.next < a.currentTime + 0.12) {
+    const b = metro.beat % metro.meter;
+    blip(metro.next, b === 0 ? 1600 : 1000);
+    const delay = Math.max(0, (metro.next - a.currentTime) * 1000);
+    setTimeout(() => flashBeat(b), delay);
+    metro.next += 60 / metro.bpm; metro.beat++;
   }
-  if (ctx.state === "suspended") { try { await ctx.resume(); } catch (e) {} }
-  const src = ctx.createMediaStreamSource(stream);
-  analyser = ctx.createAnalyser(); analyser.fftSize = N; src.connect(analyser);
-  buf = new Float32Array(N);
-  $("startBtn").textContent = "Stop"; $("posText").textContent = "Speel een lange toon";
-  try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {}
-  loop();
 }
-function stop() {
-  cancelAnimationFrame(raf); raf = 0;
-  stream?.getTracks().forEach(t => t.stop()); stream = null;
-  ctx?.close(); ctx = null; analyser = null;
-  try { wake?.release(); } catch (e) {} wake = null;
-  $("startBtn").textContent = "Start microfoon";
-  show(null);
+function flashBeat(b) {
+  [...$("beats").children].forEach((el, i) => { el.classList.toggle("on", i === b); el.classList.toggle("accent", i === 0 && b === 0); });
+}
+function setBpm(v) { metro.bpm = Math.max(40, Math.min(160, Math.round(v))); renderMetro(); }
+function renderMetro() {
+  $("bigBpm").textContent = metro.bpm; $("miniBpm").textContent = metro.bpm; $("bpmRange").value = metro.bpm;
+  $("metroBtn").textContent = metro.running ? "Stop metronoom" : "Start metronoom";
+  $("beats").innerHTML = Array.from({ length: metro.meter }, () => "<i></i>").join("");
+  document.querySelectorAll("[data-meter]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.meter === metro.meter)));
 }
 
-/* YIN op een teruggesampled venster (~12 kHz): bereik 55–800 Hz. */
-const y = new Float32Array(N), d = new Float32Array(1024), dp = new Float32Array(1024);
-function detect(x, sr) {
-  const k = Math.max(1, Math.round(sr / 12000)), sr2 = sr / k, n = Math.floor(x.length / k);
-  let rms = 0;
-  for (let i = 0; i < n; i++) { let s = 0; for (let j = 0; j < k; j++) s += x[i * k + j]; y[i] = s / k; rms += y[i] * y[i]; }
-  rms = Math.sqrt(rms / n);
-  if (rms < 0.006) return null;
-  const tauMin = Math.floor(sr2 / 800), tauMax = Math.min(Math.ceil(sr2 / 55), n - 1);
-  const W = Math.min(512, n - tauMax - 1);
-  if (W < 128) return null;
-  for (let tau = 1; tau <= tauMax; tau++) { let s = 0; for (let j = 0; j < W; j++) { const v = y[j] - y[j + tau]; s += v * v; } d[tau] = s; }
-  dp[0] = 1; let sum = 0;
-  for (let tau = 1; tau <= tauMax; tau++) { sum += d[tau]; dp[tau] = sum > 0 ? d[tau] * tau / sum : 1; }
-  let tau = -1;
-  for (let t = tauMin; t <= tauMax; t++) if (dp[t] < 0.15) { while (t + 1 <= tauMax && dp[t + 1] < dp[t]) t++; tau = t; break; }
-  if (tau < 0) return null;
-  let tt = tau;
-  if (tau > 1 && tau < tauMax) { const a = dp[tau - 1], b = dp[tau], c = dp[tau + 1], den = a - 2 * b + c; if (den) tt = tau + (a - c) / (2 * den); }
-  const f = sr2 / tt;
-  return f >= 55 && f <= 800 ? f : null;
-}
-const median = a => { const s = a.slice().sort((p, q) => p - q); return s[Math.floor(s.length / 2)]; };
+/* ===== SESSIE ===== */
+const sess = { idx: 0, left: BLOKKEN[0].min * 60000, running: false, last: 0, used: 0, finished: false, interval: null, useMetro: true };
+let wakeLock = null;
+async function lockScreen() { try { wakeLock = await navigator.wakeLock?.request("screen"); } catch (e) { wakeLock = null; } }
+function unlockScreen() { try { wakeLock?.release(); } catch (e) {} wakeLock = null; }
 
-let lastShown = 0;
-function loop() {
-  raf = requestAnimationFrame(loop);
-  if (!analyser) return;
-  analyser.getFloatTimeDomainData(buf);
-  const f = detect(buf, ctx.sampleRate), now = performance.now();
-  if (f) {
-    const midi = 69 + 12 * Math.log2(f / A4);
-    hist.push(midi); if (hist.length > 5) hist.shift();
-    const m = median(hist), note = Math.round(m), cents = Math.round((m - note) * 100);
-    trace.push([now, cents]);
-    track({ note, cents }, now);
-    if (now - lastShown > 60) { show({ note, cents }); renderTarget({ note, cents }); lastShown = now; }
-  } else {
-    hist = [];
-    track(null, now);
-    if (now - lastShown > 600) show(null, true);
-  }
-  trace = trace.filter(p => now - p[0] < 8000);
-  drawTrace(now);
+function sessStart() {
+  audio(); sess.running = true; sess.last = performance.now();
+  sess.interval = setInterval(sessTick, 200); lockScreen();
+  setBpm(blockTempo());
+  if (sess.useMetro && !metro.running) metroStart();
+  renderSession();
 }
-function cls(c) { const a = Math.abs(c); return a <= 10 ? "good" : a <= 25 ? "mid" : "off"; }
-function show(r, keepTrace) {
-  const card = $("tunerCard");
-  if (!r) {
-    card.classList.add("idle");
-    $("noteName").textContent = "–"; $("noteOct").textContent = "";
-    $("centsText").textContent = ""; $("centsText").className = "cents"; $("hintText").textContent = "";
-    $("needle").className = "needle"; $("needle").style.left = "calc(50% - 3px)";
-    if (!keepTrace) { trace = []; drawTrace(performance.now()); }
-    if (analyser) $("posText").textContent = "Speel een lange toon";
-    renderTarget(null);
-    return;
-  }
-  card.classList.remove("idle");
-  const written = r.note + 14, c = cls(r.cents);
-  $("noteName").textContent = NAMES[((written % 12) + 12) % 12];
-  $("noteOct").textContent = String(Math.floor(written / 12) - 1);
-  const pos = positionsFor(r.note);
-  $("posText").textContent = pos.length ? pos[0] + "e positie" + (pos.length > 1 ? " · ook " + pos.slice(1).map(p => p + "e").join(", ") : "") : "Geen natuurtoon in posities 1–7";
-  const pct = 50 + Math.max(-50, Math.min(50, r.cents));
-  $("needle").style.left = "calc(" + pct + "% - 3px)"; $("needle").className = "needle " + c;
-  $("centsText").textContent = (r.cents > 0 ? "+" : "") + r.cents + " cent"; $("centsText").className = "cents " + c;
-  $("hintText").textContent = c === "good" ? "Zuiver" : r.cents > 0 ? "Te hoog: schuif iets verder uit" : "Te laag: schuif iets naar binnen";
+function sessPause() {
+  sess.running = false; clearInterval(sess.interval); unlockScreen();
+  if (metro.running) metroStop();
+  renderSession();
 }
-function drawTrace(now) {
-  const cv = $("trace"), w = cv.clientWidth, h = cv.clientHeight, dpr = devicePixelRatio || 1;
-  if (!w) return;
-  if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
-  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
-  const cs = getComputedStyle(document.documentElement), tok = n => cs.getPropertyValue(n).trim();
-  const yOf = c => h / 2 - (Math.max(-50, Math.min(50, c)) / 50) * (h / 2 - 4);
-  g.fillStyle = tok("--ok-soft"); g.fillRect(0, yOf(10), w, yOf(-10) - yOf(10));
-  g.strokeStyle = tok("--line"); g.beginPath(); g.moveTo(0, h / 2 + .5); g.lineTo(w, h / 2 + .5); g.stroke();
-  const col = { good: tok("--ok"), mid: tok("--warn"), off: tok("--bad") };
-  trace.forEach(([t, c]) => { g.fillStyle = col[cls(c)]; g.beginPath(); g.arc(w - ((now - t) / 8000) * w, yOf(c), 2, 0, Math.PI * 2); g.fill(); });
-  const recent = trace.filter(p => now - p[0] < 3000).map(p => p[1]);
-  if (recent.length > 20) {
-    const mean = recent.reduce((a, b) => a + b, 0) / recent.length;
-    const dev = recent.reduce((a, b) => a + Math.abs(b - mean), 0) / recent.length;
-    $("steadyText").textContent = dev < 5 ? "Heel stabiel" : dev < 10 ? "Redelijk stabiel" : "Wiebelt: blaas gelijkmatig";
-  } else $("steadyText").textContent = "";
+function sessTick() {
+  const now = performance.now(), dt = now - sess.last; sess.last = now;
+  sess.left -= dt; sess.used += dt;
+  if (sess.left <= 0) nextBlock(true);
+  renderClock();
 }
-function setA4(v) { A4 = Math.max(430, Math.min(450, v)); $("calText").textContent = A4; try { localStorage.setItem("a4", A4); } catch (e) {} }
+function nextBlock(auto) {
+  if (sess.idx < BLOKKEN.length - 1) {
+    sess.idx++; sess.left = BLOKKEN[sess.idx].min * 60000;
+    setBpm(blockTempo());
+    if (auto) chime(1);
+    renderSession();
+  } else finishSession(auto);
+}
+function finishSession(auto) {
+  sessPause(); sess.finished = true; sess.left = 0;
+  if (auto) chime(2);
+  saveToday({ sessie: true, minuten: (log[todayKey()]?.minuten || 0) + Math.max(1, Math.round(sess.used / 60000)), week: weekIdx() + 1, bpm: metro.bpm });
+  ensurePiecesStarted(weekIdx());
+  renderSession();
+}
+function sessReset() {
+  sessPause(); Object.assign(sess, { idx: 0, left: BLOKKEN[0].min * 60000, used: 0, finished: false });
+  renderSession();
+}
 
-/* ===== KOPPELING MET DE APP =====
-   De app opent deze pagina met ?t=titel&n=noten&w=week (een stuk om mee te volgen)
-   of ?doel=G4 (alleen een doelnoot). Notenformaat: G4h@1, F#4q@2, Rq, | = maatstreep. */
+/* ===== NOTENSCHRIFT ===== */
+let shownScores = null, currentScores = [];
+let showPos = true, showLetters = false;
+try { showLetters = localStorage.getItem("letters") === "aan"; } catch (e) {}
+try { showPos = localStorage.getItem("posities") !== "uit"; } catch (e) {}
 const NOTE_RX = /^(\()?([A-G])(#|b)?(\d)(w|hd|h|qd|q|8)(?:@(\d))?(\))?$/;
 const REST_RX = /^R(w|h|q|8)$/;
+
+let currentScoreCtx = null;
+function renderScores(list, ctx) {
+  currentScores = list || [];
+  if (ctx !== undefined) currentScoreCtx = ctx;
+  pieceUis = [];
+  renderScoresInto($("scores"), currentScores, currentScoreCtx);
+  renderPieceUis();
+}
+function renderScoresInto(box, list, ctx) {
+  box.innerHTML = "";
+  list.forEach((sc, i) => {
+    const wrap = document.createElement("div"); wrap.className = "score";
+    if (sc.t) { const l = document.createElement("div"); l.className = "label"; l.textContent = sc.t; wrap.append(l); }
+    const host = document.createElement("div"); wrap.append(host); box.append(wrap);
+    try { drawScore(host, sc); }
+    catch (e) { host.innerHTML = ""; const f = document.createElement("p"); f.className = "fallback"; f.textContent = sc.n.split("|").map(m => m.trim().split(/\s+/).map(t => { const x = NOTE_RX.exec(t); return x ? dutchName(x[2], x[3]) : "rust"; }).join(" ")).join("  |  "); host.append(f); }
+    if (ctx) { const u = buildPieceUi(pieceMeta(ctx.w, ctx.b, i), sc); wrap.append(u.el); pieceUis.push(u); }
+  });
+}
+
+function drawScore(host, sc) {
+  const VF = window.Vex && (window.Vex.Flow || window.Vex);
+  if (!VF || !VF.Renderer) throw new Error("geen notenschrift");
+  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#000";
+  const posColor = getComputedStyle(document.documentElement).getPropertyValue("--brass-ink").trim() || ink;
+  const withPos = showPos && sc.pos !== false;
+  const withLetters = sc.letters ?? (showLetters || /toonladder/i.test(sc.t || ""));
+  const mutedColor = getComputedStyle(document.documentElement).getPropertyValue("--muted").trim() || ink;
+  const measures = sc.n.split("|").map(m => m.trim().split(/\s+/).filter(Boolean));
+  const avail = Math.floor(host.clientWidth || host.parentElement?.clientWidth || 340);
+  const W = sc.kaal ? 200 : sc.enkel ? Math.min(Math.max(280, avail), 420) : Math.max(300, avail);
+  const per = sc.kaal || sc.enkel ? 1 : W < 440 ? 2 : W < 720 ? 3 : 4;
+  const lines = [];
+  for (let i = 0; i < measures.length; i += per) lines.push(measures.slice(i, i + per));
+  const lineH = 100 + (withPos ? 18 : 0) + (withLetters ? 18 : 0);
+  const topPad = withLetters ? 14 : 0;
+  const renderer = new VF.Renderer(host, VF.Renderer.Backends.SVG);
+  renderer.resize(W, lines.length * lineH + 6);
+  const ctx = renderer.getContext();
+  ctx.setFillStyle(ink); ctx.setStrokeStyle(ink);
+  const clefW = 40, timeW = 26;
+  const curves = []; let slurStart = null, slurLine = -1;
+  lines.forEach((line, li) => {
+    const extra = clefW + (li === 0 ? timeW : 0);
+    const base = (W - 2 - extra) / per;
+    let x = 0;
+    line.forEach((tokens, mi) => {
+      const w = base + (mi === 0 ? extra : 0);
+      const stave = new VF.Stave(x, li * lineH + topPad, w);
+      if (mi === 0) stave.addClef("treble");
+      if (li === 0 && mi === 0 && !sc.kaal) stave.addTimeSignature(sc.maat || "4/4");
+      if (li === lines.length - 1 && mi === line.length - 1 && VF.Barline) stave.setEndBarType(VF.Barline.type.END);
+      stave.setContext(ctx).draw();
+      const notes = [];
+      tokens.forEach(tok => {
+        const r = REST_RX.exec(tok);
+        if (r) { notes.push(new VF.StaveNote({ keys: ["b/4"], duration: r[1] + "r" })); return; }
+        const m = NOTE_RX.exec(tok);
+        if (!m) throw new Error("onbekende noot " + tok);
+        const [, open, letter, acc, oct, dur, pos, close] = m;
+        const note = new VF.StaveNote({ keys: [letter.toLowerCase() + (acc || "") + "/" + oct], duration: dur, auto_stem: true });
+        if (acc) note.addModifier(new VF.Accidental(acc), 0);
+        if (dur.endsWith("d")) {
+          if (VF.Dot && VF.Dot.buildAndAttach) VF.Dot.buildAndAttach([note], { all: true });
+          else if (note.addDotToAll) note.addDotToAll();
+        }
+        if (withLetters) {
+          const name = new VF.Annotation(dutchName(letter, acc));
+          name.setVerticalJustification(VF.Annotation.VerticalJustify.TOP);
+          try { name.setFont("Atkinson Hyperlegible, system-ui, sans-serif", 12, "normal"); } catch (e) {}
+          note.addModifier(name, 0);
+        }
+        if (withPos && pos) {
+          const ann = new VF.Annotation(pos);
+          ann.setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM);
+          try { ann.setFont("Atkinson Hyperlegible, system-ui, sans-serif", 12, "bold"); } catch (e) {}
+          note.addModifier(ann, 0);
+        }
+        if (open) { slurStart = note; slurLine = li; }
+        if (close && slurStart && slurLine === li) { curves.push([slurStart, note]); slurStart = null; }
+        notes.push(note);
+      });
+      const [nb, bv] = (sc.maat || "4/4").split("/").map(Number);
+      const voice = new VF.Voice({ num_beats: nb || 4, beat_value: bv || 4 });
+      if (voice.setStrict) voice.setStrict(false); else if (voice.setMode) voice.setMode(VF.Voice.Mode.SOFT);
+      voice.addTickables(notes);
+      const beams = VF.Beam && VF.Beam.generateBeams ? VF.Beam.generateBeams(notes) : [];
+      new VF.Formatter().joinVoices([voice]).format([voice], Math.max(40, stave.getNoteEndX() - stave.getNoteStartX() - 10));
+      voice.draw(ctx, stave);
+      beams.forEach(b => b.setContext(ctx).draw());
+      x += w;
+    });
+  });
+  curves.forEach(([a, b]) => { try { new VF.Curve(a, b, {}).setContext(ctx).draw(); } catch (e) {} });
+  /* Kleuren laten meegaan met licht/donker thema */
+  const svg = host.querySelector("svg");
+  if (svg) {
+    svg.querySelectorAll("[fill],[stroke]").forEach(el => {
+      ["fill", "stroke"].forEach(a => { const v = (el.getAttribute(a) || "").toLowerCase(); if (v === "black" || v === "#000" || v === "#000000") el.setAttribute(a, ink); });
+    });
+    svg.querySelectorAll("text").forEach(t => {
+      const v = t.textContent.trim();
+      if (withPos && /^\d$/.test(v)) t.setAttribute("fill", posColor);
+      else if (withLetters && NAME_RX.test(v)) t.setAttribute("fill", mutedColor);
+    });
+  }
+}
+const NAME_RX = /^(C|Cis|Des|D|Dis|Es|E|F|Fis|Ges|G|Gis|As|A|Ais|Bes|B)$/;
+function dutchName(letter, acc) {
+  if (acc === "#") return letter + "is";
+  if (acc === "b") return letter === "E" ? "Es" : letter === "A" ? "As" : letter === "B" ? "Bes" : letter + "es";
+  return letter;
+}
+function rerenderScores() { renderScores(currentScores); if (!$("tab-tuner").hidden) tuner.redraw(); if (!$("tab-trainer").hidden) { drawQuizNote(); if (rh.pat) drawRhythm(); } }
+let resizeTimer = null;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(rerenderScores, 200); });
+try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerenderScores); } catch (e) {}
+try { new MutationObserver(rerenderScores).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] }); } catch (e) {}
+function renderPosToggle() { $("posToggle").setAttribute("aria-pressed", String(showPos)); $("posToggle").textContent = showPos ? "Posities aan" : "Posities uit"; }
+
+/* ===== RENDER ===== */
+function renderClock() {
+  const s = Math.max(0, Math.ceil(sess.left / 1000));
+  $("clock").textContent = Math.floor(s / 60) + ":" + pad(s % 60);
+  [...$("blocks").children].forEach((el, i) => {
+    const total = BLOKKEN[i].min * 60000;
+    const frac = i < sess.idx || sess.finished ? 1 : i === sess.idx ? 1 - sess.left / total : 0;
+    el.querySelector("i").style.width = (Math.max(0, Math.min(1, frac)) * 100) + "%";
+    el.classList.toggle("done", i < sess.idx || sess.finished);
+    el.classList.toggle("active", i === sess.idx && !sess.finished);
+  });
+}
+function renderSession() {
+  const w = LEERLIJN[weekIdx()], b = BLOKKEN[sess.idx];
+  $("blockLabel").textContent = sess.finished ? "Sessie klaar" : "Blok " + (sess.idx + 1) + " · " + b.naam;
+  $("startBtn").textContent = sess.running ? "Pauze" : sess.used > 0 && !sess.finished ? "Verder" : "Start sessie";
+  $("startBtn").disabled = sess.finished;
+  $("skipBtn").disabled = sess.finished;
+  $("stepsTitle").textContent = sess.finished ? "Goed gedaan" : b.naam;
+  const blok = w.blokken[sess.idx];
+  $("steps").innerHTML = sess.finished ? "<li>Schrijf hieronder kort op hoe het ging.</li>" : blok.tekst.map(t => "<li>" + t + "</li>").join("");
+  const key = weekIdx() + ":" + sess.idx + ":" + sess.finished;
+  if (key !== shownScores) { shownScores = key; renderScores(sess.finished ? [] : blok.sc, sess.finished ? null : { w: weekIdx(), b: sess.idx }); }
+  $("doneBox").hidden = !sess.finished;
+  $("miniToggle").setAttribute("aria-pressed", String(sess.useMetro));
+  $("miniToggle").textContent = sess.useMetro ? "Klik aan" : "Klik uit";
+  if (drone && droneSource === "mini" && drone.midi !== blockDroneMidi()) stopDrone(true);
+  renderDrone();
+  renderClock();
+}
+function renderWeek() {
+  const i = weekIdx(), w = LEERLIJN[i];
+  $("weekEyebrow").textContent = "Week " + (i + 1) + " van " + LEERLIJN.length + (viewWeek !== null && i !== currentWeekIdx() ? " · vooruit of terug gekeken" : "");
+  $("weekTitle").textContent = w.titel;
+  $("notenText").textContent = w.noten;
+  $("theoryTitle").textContent = w.theorie.titel;
+  $("theoryBody").innerHTML = w.theorie.tekst.map(t => "<p>" + t + "</p>").join("");
+  $("prevWeek").disabled = i === 0; $("nextWeek").disabled = i === LEERLIJN.length - 1;
+  if (!metro.running) setBpm(blockTempo());
+  renderSession();
+}
+function renderToday() {
+  const t = log[todayKey()];
+  const chip = $("todayChip");
+  if (t && (t.sessie || t.handmatig)) { chip.textContent = "Vandaag geoefend"; chip.classList.add("ok"); }
+  else { chip.textContent = "Nog niet geoefend"; chip.classList.remove("ok"); }
+  $("notenCheck").checked = !!t?.noten;
+  if (document.activeElement !== $("noteField")) $("noteField").value = t?.notitie || "";
+  $("manualBtn").hidden = !!(t && (t.sessie || t.handmatig));
+}
+function practiced(k) { const d = log[k]; return !!(d && (d.sessie || d.handmatig)); }
+function renderLog() {
+  const today = todayKey(), start = parseKey(settings.start);
+  let done = 0, cells = "";
+  for (let i = 0; i < 60; i++) {
+    const d = new Date(start); d.setDate(d.getDate() + i); const k = dateKey(d);
+    const p = practiced(k); if (p) done++;
+    const cls = [p ? "done" : "", k < today ? "past" : "", k === today ? "today" : ""].join(" ");
+    cells += '<i class="' + cls + '" title="' + k + '"></i>';
+  }
+  $("grid60").innerHTML = cells;
+  let streak = 0; const c = new Date(); if (!practiced(dateKey(c))) c.setDate(c.getDate() - 1);
+  while (practiced(dateKey(c))) { streak++; c.setDate(c.getDate() - 1); }
+  $("statDays").textContent = done; $("statStreak").textContent = streak; $("statLeft").textContent = Math.max(0, 45 - done);
+  $("cpDays").checked = done >= 45; $("cpScale").checked = !!settings.scale; $("cpSight").checked = !!settings.sight;
+  $("startDate").value = settings.start;
+  const notes = Object.keys(log).sort().reverse().filter(k => log[k].notitie).slice(0, 10);
+  $("notesList").innerHTML = notes.length ? "" : '<li class="muted">Nog geen notities. Schrijf er een op na je sessie.</li>';
+  notes.forEach(k => { const li = document.createElement("li"); const b = document.createElement("b"); b.textContent = parseKey(k).toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short" }); li.append(b, document.createElement("br"), document.createTextNode(log[k].notitie)); $("notesList").append(li); });
+}
+function renderAll() { renderWeek(); renderToday(); renderLog(); renderPieces(); if (!$("tab-trainer").hidden) renderTrainer(); }
+
+/* ===== OPSLAG ===== */
+function setStatus(t) { $("saveStatus").textContent = t; }
+async function saveToday(patch) {
+  await whenLoaded("log");
+  const k = todayKey();
+  const doc = Object.assign({ datum: k }, log[k] || {}, patch);
+  log[k] = doc; renderToday(); renderLog();
+  if (!db) { setStatus("Niet opgeslagen: opslag niet bereikbaar"); return; }
+  if (await queueWrite("log/" + k, doc)) setStatus("Opgeslagen");
+}
+async function saveSettings(patch) {
+  Object.assign(settings, patch); renderAll();
+  if (!db) return;
+  try { await db.doc("settings/profiel").set(settings); } catch (e) { $("dbStatus").textContent = "Instelling niet opgeslagen."; }
+}
+async function connectDb() {
+  db = makeLocalDb();
+  if (!db) { $("dbStatus").textContent = "Je browser blokkeert opslag (privévenster?). De app werkt, maar onthoudt niets."; return; }
+  let kept = false;
+  try { kept = await navigator.storage?.persist?.(); } catch (e) {}
+  $("dbStatus").textContent = "Je oefenlog staat alleen op dit toestel" + (kept ? " en wordt niet automatisch opgeruimd." : ". Maak af en toe een backup.");
+  db.doc("settings/profiel").onSnapshot(s => {
+    if (s.exists) { settings = Object.assign({ start: todayKey(), scale: false, sight: false }, s.data()); renderAll(); }
+    else if (!s.metadata.fromCache) db.doc("settings/profiel").set(settings).catch(() => {});
+  }, () => { $("dbStatus").textContent = "Verbinding met opslag verbroken. Herlaad de pagina."; });
+  db.collection("log").onSnapshot(q => {
+    if (q.metadata.fromCache && !loaded.log) return;
+    const next = {}; q.docs.forEach(d => { next[d.id] = Object.assign({}, d.data()); }); log = next; renderToday(); renderLog(); markLoaded("log");
+    const lt = log[todayKey()]?.trainer; if (tr && lt && lt.sec > tr.sec) tr = null;
+    if (!$("tab-trainer").hidden) renderTrainerHead();
+  }, () => { $("dbStatus").textContent = "Verbinding met opslag verbroken. Herlaad de pagina."; });
+  db.collection("voortgang").onSnapshot(q => {
+    if (q.metadata.fromCache && !loaded.voortgang) return;
+    const next = {}; q.docs.forEach(d => { next[d.id] = Object.assign({}, d.data()); }); voortgang = next; markLoaded("voortgang");
+    renderPieceUis(); renderPieces();
+    if (!sess.running && !metro.running) setBpm(blockTempo());
+  }, () => {});
+}
+
+/* ===== OPSLAG OP DIT TOESTEL =====
+   Alles staat in de browser van dit toestel (localStorage), nooit online.
+   Zelfde vorm als de vorige opslag: db.doc(pad).set/get/delete/onSnapshot en db.collection(pad).onSnapshot. */
+function makeLocalDb() {
+  const P = "tc:";
+  try { localStorage.setItem(P + "probe", "1"); localStorage.removeItem(P + "probe"); } catch (e) { return null; }
+  const subs = {}, meta = { fromCache: false, hasPendingWrites: false };
+  const read = path => { try { const v = localStorage.getItem(P + path); return v ? JSON.parse(v) : null; } catch (e) { return null; } };
+  const ids = col => { const pre = P + col + "/", out = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(pre) && !k.slice(pre.length).includes("/")) out.push(k.slice(pre.length)); } return out.sort(); };
+  const docSnap = path => { const v = read(path); return { id: path.split("/").pop(), exists: v !== null, data: () => v === null ? undefined : v, metadata: meta }; };
+  const colSnap = col => { const docs = ids(col).map(id => docSnap(col + "/" + id)).filter(s => s.exists); return { docs, size: docs.length, empty: !docs.length, docChanges: () => [], metadata: meta }; };
+  const emit = path => { const col = path.split("/").slice(0, -1).join("/"); (subs[path] || []).forEach(f => f(docSnap(path))); (subs[col] || []).forEach(f => f(colSnap(col))); };
+  const sub = (key, fn, snap) => { (subs[key] = subs[key] || []).push(fn); setTimeout(() => fn(snap()), 0); return () => { subs[key] = (subs[key] || []).filter(f => f !== fn); }; };
+  /* Wijzigingen uit een ander tabblad van dezelfde app ook hier tonen. */
+  addEventListener("storage", e => { if (e.key && e.key.startsWith(P)) emit(e.key.slice(P.length)); });
+  const VALID = /^(settings\/profiel|log\/\d{4}-\d{2}-\d{2}|voortgang\/w\d+-b\d+-s\d+)$/;
+  return {
+    doc: path => ({
+      async set(data) { try { localStorage.setItem(P + path, JSON.stringify(data)); } catch (e) { throw { code: "quota_exceeded" }; } emit(path); },
+      async get() { return docSnap(path); },
+      async delete() { localStorage.removeItem(P + path); emit(path); },
+      onSnapshot: fn => sub(path, fn, () => docSnap(path))
+    }),
+    collection: col => ({ onSnapshot: fn => sub(col, fn, () => colSnap(col)) }),
+    dump() { const out = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(P) && VALID.test(k.slice(P.length))) out[k.slice(P.length)] = read(k.slice(P.length)); } return out; },
+    load(obj) { let n = 0; Object.keys(obj).forEach(k => { if (VALID.test(k) && obj[k] && typeof obj[k] === "object" && !Array.isArray(obj[k])) { localStorage.setItem(P + k, JSON.stringify(obj[k])); emit(k); n++; } }); return n; }
+  };
+}
+
+/* ===== BACKUP ===== */
+async function saveBackup() {
+  if (!db) return;
+  const name = "trombone-coach-backup-" + todayKey() + ".json";
+  const body = JSON.stringify({ app: "trombone-coach", versie: 1, gemaakt: new Date().toISOString(), data: db.dump() }, null, 2);
+  const file = new File([body], name, { type: "application/json" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); $("bkStatus").textContent = "Kies ‘Bewaar in Bestanden’ (of iCloud Drive) om de backup te bewaren."; return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.append(a); a.click(); a.remove();
+  $("bkStatus").textContent = "Backup bewaard als " + name + ".";
+}
+async function loadBackup(f) {
+  if (!f || !db) return;
+  try {
+    const obj = JSON.parse(await f.text());
+    if (obj.app !== "trombone-coach" || !obj.data || typeof obj.data !== "object") throw new Error("geen backup");
+    const n = db.load(obj.data);
+    $("bkStatus").textContent = "Backup teruggezet: " + n + " onderdelen. Wat er al stond en niet in de backup zat, blijft bewaard.";
+  } catch (e) { $("bkStatus").textContent = "Dit bestand is geen backup van Trombone Coach."; }
+}
+
+/* ===== STEMTOON ===== */
+const NAMES_NL = ["C", "Cis", "D", "Es", "E", "F", "Fis", "G", "As", "A", "Bes", "B"];
+const DRONE_NOTES = [[60, "Lage C"], [62, "D"], [64, "E"], [65, "F"], [67, "G"], [69, "A"], [70, "Bes"], [71, "B"], [72, "Hoge C"]];
+const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+let drone = null, droneSource = null;
+function fillDroneSelect() {
+  $("droneNote").innerHTML = DRONE_NOTES.map(([m, n]) => '<option value="' + m + '"' + (m === 67 ? " selected" : "") + ">" + n + "</option>").join("");
+}
+function startDrone(writtenMidi, source) {
+  stopDrone(true);
+  const a = audio(), concert = writtenMidi - 14, f = 440 * Math.pow(2, (concert - 69) / 12);
+  const osc = a.createOscillator(), lp = a.createBiquadFilter(), g = a.createGain();
+  osc.type = "sawtooth"; osc.frequency.value = f; lp.type = "lowpass"; lp.frequency.value = 1400;
+  g.gain.setValueAtTime(0, a.currentTime); g.gain.linearRampToValueAtTime(0.12, a.currentTime + 0.15);
+  osc.connect(lp).connect(g).connect(a.destination); osc.start();
+  drone = { osc, g, midi: writtenMidi }; droneSource = source; renderDrone();
+}
+function stopDrone(silent) {
+  if (drone) { const a = audio(); try { drone.g.gain.linearRampToValueAtTime(0, a.currentTime + 0.1); drone.osc.stop(a.currentTime + 0.12); } catch (e) {} }
+  drone = null; droneSource = null; if (!silent) renderDrone();
+}
+function blockDroneMidi() {
+  const blok = LEERLIJN[weekIdx()].blokken[sess.idx], first = blok?.sc?.[0]?.n.split(/[\s|]+/).find(t => NOTE_RX.test(t));
+  if (!first) return 67;
+  const [, , letter, acc, oct] = NOTE_RX.exec(first);
+  return (+oct + 1) * 12 + LETTER_PC[letter] + (acc === "#" ? 1 : acc === "b" ? -1 : 0);
+}
+function renderDrone() {
+  const on = !!drone;
+  $("droneBtn").setAttribute("aria-pressed", String(on && droneSource === "tab"));
+  $("droneBtn").textContent = on && droneSource === "tab" ? "Stop stemtoon" : "Speel stemtoon";
+  const m = blockDroneMidi(), nm = NAMES_NL[((m % 12) + 12) % 12];
+  $("miniDrone").setAttribute("aria-pressed", String(on && droneSource === "mini"));
+  $("miniDrone").textContent = on && droneSource === "mini" ? "Stop toon " + nm : "Stemtoon " + nm;
+}
+$("droneBtn").onclick = () => { if (drone && droneSource === "tab") stopDrone(); else startDrone(+$("droneNote").value, "tab"); };
+$("droneNote").onchange = () => { if (drone && droneSource === "tab") startDrone(+$("droneNote").value, "tab"); };
+$("miniTuner").onclick = () => tuner.openDoel(blockDroneMidi(), true);
+$("miniDrone").onclick = () => { if (drone && droneSource === "mini") stopDrone(); else startDrone(blockDroneMidi(), "mini"); };
+
+/* ===== OPSLAAN IN VOLGORDE ===== */
+const writeChains = {};
+function queueWrite(path, data) {
+  const prev = writeChains[path] || Promise.resolve(true);
+  const p = prev.then(async () => { if (!db) return false; try { await db.doc(path).set(data); return true; } catch (e) { setStatus(e?.code === "quota_exceeded" ? "Opslag vol" : "Opslaan mislukt, probeer het opnieuw"); return false; } });
+  writeChains[path] = p; return p;
+}
+const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return dateKey(d); };
+
+/* ===== DOORGAAN-REGEL PER STUK =====
+   3 dagen op rij foutloos op tempo = beheerst.
+   14 dagen op hetzelfde tempo zonder dat = tempo 10 lager. */
+let voortgang = {};
+let pieceUis = [];
+const pieceId = (w, b, i) => "w" + (w + 1) + "-b" + (b + 1) + "-s" + (i + 1);
+const shortTitle = t => String(t || "").split(" · ")[0];
+function pieceMeta(w, b, i) {
+  const sc = LEERLIJN[w].blokken[b].sc[i];
+  return { id: pieceId(w, b, i), w, titel: shortTitle(sc.t) || BLOKKEN[b].naam, week: w + 1 };
+}
+function pieceTempo(id, w) { return voortgang[id]?.tempo || LEERLIJN[w].bpm; }
+function pieceStatus(id, w) {
+  const v = voortgang[id] || {}, dagen = new Set(v.dagen || []), today = todayKey();
+  let k = dagen.has(today) ? today : addDays(today, -1), run = 0;
+  while (dagen.has(k)) { run++; k = addDays(k, -1); }
+  const tempo = pieceTempo(id, w);
+  const beheerst = (v.beheerst || []).includes(tempo);
+  const struggling = !beheerst && !!v.tempoSinds && dayDiff(v.tempoSinds, today) >= 14;
+  return { run, tempo, beheerst, struggling, vandaag: dagen.has(today), gestart: !!v.tempoSinds, ooitBeheerst: (v.beheerst || []).length > 0 };
+}
+async function savePiece(meta, patch) {
+  await whenLoaded("voortgang");
+  const v = Object.assign({ titel: meta.titel, week: meta.week, tempo: pieceTempo(meta.id, meta.w), tempoSinds: todayKey(), dagen: [], beheerst: [] }, voortgang[meta.id] || {}, patch);
+  voortgang[meta.id] = v; renderPieceUis(); renderPieces();
+  queueWrite("voortgang/" + meta.id, v);
+}
+async function markFoutloos(meta) {
+  await whenLoaded("voortgang");
+  const today = todayKey(), v = voortgang[meta.id] || {};
+  if ((v.dagen || []).includes(today)) return;
+  const dagen = (v.dagen || []).concat(today).slice(-30);
+  voortgang[meta.id] = Object.assign({}, v, { dagen });
+  const st = pieceStatus(meta.id, meta.w);
+  const beheerst = (v.beheerst || []).slice();
+  if (st.run >= 3 && !beheerst.includes(st.tempo)) { beheerst.push(st.tempo); chime(2); }
+  savePiece(meta, { dagen, beheerst });
+}
+function setPieceTempo(meta, t) {
+  t = Math.max(40, Math.min(160, t));
+  savePiece(meta, { tempo: t, tempoSinds: todayKey(), dagen: [] });
+  setBpm(t);
+}
+function blockTempo() {
+  const w = weekIdx(), sc = LEERLIJN[w].blokken[sess.idx]?.sc || [];
+  return sc.length ? pieceTempo(pieceId(w, sess.idx, 0), w) : LEERLIJN[w].bpm;
+}
+async function ensurePiecesStarted(w) {
+  await whenLoaded("voortgang");
+  LEERLIJN[w].blokken.forEach((b, bi) => b.sc.forEach((sc, i) => { const m = pieceMeta(w, bi, i); if (!voortgang[m.id]) savePiece(m, {}); }));
+}
+function buildPieceUi(meta, sc) {
+  const el = document.createElement("div"); el.className = "pp";
+  const row = document.createElement("div"); row.className = "row";
+  const tempo = document.createElement("button"); tempo.className = "tempo"; tempo.title = "Zet de metronoom op dit tempo";
+  const dots = document.createElement("span"); dots.className = "dots"; dots.setAttribute("aria-hidden", "true"); dots.innerHTML = "<i></i><i></i><i></i>";
+  const ok = document.createElement("button"); ok.className = "okbtn";
+  const tl = document.createElement("button"); tl.textContent = "Meespelen"; tl.title = "Speel dit stuk mee met de tuner";
+  tl.onclick = () => tuner.openPiece(sc, meta.w, meta.titel, pieceTempo(meta.id, meta.w), true);
+  row.append(tempo, dots, ok, tl);
+  const msg = document.createElement("p"); msg.className = "status ppmsg";
+  const act = document.createElement("div"); act.className = "row";
+  el.append(row, msg, act);
+  tempo.onclick = () => setBpm(pieceTempo(meta.id, meta.w));
+  ok.onclick = () => markFoutloos(meta);
+  return { meta, el, tempo, dots, ok, msg, act };
+}
+function renderPieceUi(u) {
+  const st = pieceStatus(u.meta.id, u.meta.w);
+  u.tempo.textContent = "♩ = " + st.tempo;
+  [...u.dots.children].forEach((d, i) => d.classList.toggle("on", i < Math.min(3, st.run) || st.beheerst));
+  u.ok.textContent = st.vandaag ? "Vandaag foutloos ✓" : "Foutloos op tempo";
+  u.ok.disabled = st.vandaag;
+  u.act.innerHTML = "";
+  if (st.beheerst) {
+    u.msg.textContent = "Beheerst op " + st.tempo + ". Verhoog het tempo, of ga door naar het volgende stuk.";
+    const up = document.createElement("button"); up.textContent = "Tempo +5"; up.onclick = () => setPieceTempo(u.meta, st.tempo + 5); u.act.append(up);
+  } else if (st.struggling) {
+    u.msg.textContent = "Al twee weken zonder drie dagen op rij. Zet het tempo 10 lager, dan lukt het wel.";
+    const dn = document.createElement("button"); dn.textContent = "Tempo −10"; dn.onclick = () => setPieceTempo(u.meta, st.tempo - 10); u.act.append(dn);
+  } else if (st.run) {
+    u.msg.textContent = st.run + " van 3 dagen op rij foutloos.";
+  } else {
+    u.msg.textContent = "Drie dagen op rij foutloos op tempo? Dan beheers je dit stuk.";
+  }
+  u.msg.classList.toggle("goodtxt", st.beheerst); u.msg.classList.toggle("warntxt", st.struggling);
+}
+function renderPieceUis() { pieceUis.forEach(renderPieceUi); }
+function renderPieces() {
+  const box = $("piecesList"); if (!box) return;
+  const cw = currentWeekIdx(), items = [];
+  for (let w = 0; w <= cw; w++) LEERLIJN[w].blokken.forEach((b, bi) => b.sc.forEach((sc, i) => items.push(pieceMeta(w, bi, i))));
+  box.innerHTML = "";
+  items.reverse().forEach(m => {
+    const st = pieceStatus(m.id, m.w), li = document.createElement("li");
+    const name = document.createElement("span"); name.textContent = "W" + m.week + " · " + m.titel;
+    const chip = document.createElement("span"); chip.className = "chip";
+    if (st.beheerst) { chip.classList.add("ok"); chip.textContent = "Beheerst · " + st.tempo; }
+    else if (st.struggling) { chip.classList.add("warn"); chip.textContent = "Tempo omlaag"; }
+    else if (st.gestart) chip.textContent = st.run + "/3 · " + st.tempo;
+    else { chip.classList.add("idle"); chip.textContent = "Nog niet"; }
+    li.append(name, chip); box.append(li);
+  });
+}
+
+/* ===== TRAINER: TIJD EN SCORE VAN VANDAAG ===== */
+let tr = null, trLast = 0, trTimer = null;
+function trState() {
+  const k = todayKey();
+  if (!tr || tr.datum !== k) { const t = log[k]?.trainer || {}; tr = { datum: k, sec: t.sec || 0, noten: (t.noten || [0, 0]).slice(), ritme: (t.ritme || [0, 0]).slice() }; }
+  return tr;
+}
+function trainerRecord(kind, ok) {
+  const s = trState(), now = Date.now();
+  s[kind][1]++; if (ok) s[kind][0]++;
+  s.sec += trLast && now - trLast < 60000 ? (now - trLast) / 1000 : 8; trLast = now;
+  renderTrainerHead();
+  clearTimeout(trTimer); trTimer = setTimeout(flushTrainer, 1500);
+}
+function flushTrainer() {
+  const s = trState(), patch = { trainer: { sec: Math.round(s.sec), noten: s.noten, ritme: s.ritme } };
+  if (s.sec >= 300 && !log[todayKey()]?.noten) patch.noten = true;
+  saveToday(patch);
+}
+function renderTrainerHead() {
+  const s = trState(), min = Math.floor(s.sec / 60), done = s.sec >= 300;
+  $("trChip").textContent = done ? "5 minuten gehaald ✓" : min + " van 5 min";
+  $("trChip").classList.toggle("ok", done);
+  $("trBar").style.width = Math.min(100, s.sec / 3) + "%";
+  $("trWeekNote").textContent = LEERLIJN[weekIdx()].noten;
+  $("quizStats").textContent = "Vandaag " + s.noten[0] + " van " + s.noten[1] + " goed" + (quiz.reeks > 2 ? " · reeks van " + quiz.reeks : "");
+  $("rhStats").textContent = "Vandaag " + s.ritme[0] + " van " + s.ritme[1] + " ritmes strak";
+}
+
+/* ===== NOTEN LEZEN ===== */
 const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-const params = new URLSearchParams(location.search);
-const tk = { showPos: params.get("pos") !== "0", titel: "", n: "", maat: "4/4", seq: [], idx: 0, hits: [], holdStart: 0, holdCents: [], needRelease: false, lastHit: null, gapStart: 0, doel: null };
-
-function tokMidi(L, acc, oct) { return (+oct + 1) * 12 + PC[L] + (acc === "#" ? 1 : acc === "b" ? -1 : 0); }
-function nameOf(m) { return NAMES[((m % 12) + 12) % 12]; }
-function setupFromParams() {
-  const n = (params.get("n") || "").slice(0, 2000), doel = params.get("doel");
-  tk.titel = (params.get("t") || "").slice(0, 80);
-  tk.maat = /^\d\/\d$/.test(params.get("maat") || "") ? params.get("maat") : "4/4";
-  if (n) {
-    const toks = n.split(/[\s|]+/).filter(Boolean);
-    if (!toks.every(t => NOTE_RX.test(t) || REST_RX.test(t))) return;
-    tk.n = n;
-    toks.forEach(t => { const m = NOTE_RX.exec(t); if (m) tk.seq.push({ midi: tokMidi(m[2], m[3], m[4]), pos: m[6] ? +m[6] : null }); });
-    $("pieceCard").hidden = false;
-    $("pieceTitle").textContent = tk.titel || "Oefening";
-    const w = parseInt(params.get("w"), 10);
-    $("pieceEyebrow").textContent = w ? "Week " + w + " · uit je app" : "Uit je app";
-    document.title = (tk.titel || "Oefening") + " · Trombone Tuner";
-  } else if (doel) {
-    const m = /^([A-G])(#|b)?(\d)$/.exec(doel);
-    if (m) tk.doel = tokMidi(m[1], m[2], m[3]);
-  }
-  renderPiece(); renderTarget(null);
+const quiz = { mode: "naam", cur: null, prev: null, locked: true, reeks: 0, timer: null };
+try { if (localStorage.getItem("quizmode") === "positie") quiz.mode = "positie"; } catch (e) {}
+function notePool(w) {
+  const map = new Map();
+  for (let i = 0; i <= w; i++) LEERLIJN[i].blokken.forEach(b => b.sc.forEach(sc => sc.n.split(/[\s|]+/).forEach(tok => {
+    const m = NOTE_RX.exec(tok); if (!m) return;
+    const [, , L, acc, oct, , pos] = m, key = L + (acc || "") + oct;
+    const midi = (+oct + 1) * 12 + PC[L] + (acc === "#" ? 1 : acc === "b" ? -1 : 0);
+    if (!map.has(key)) map.set(key, { key, midi, naam: dutchName(L, acc), pos: pos ? +pos : null });
+    else if (pos && !map.get(key).pos) map.get(key).pos = +pos;
+  })));
+  return [...map.values()].sort((a, b) => a.midi - b.midi);
 }
-function currentTarget() { return tk.seq.length ? (tk.idx < tk.seq.length ? tk.seq[tk.idx].midi : null) : tk.doel; }
-
-function track(r, now) {
-  if (!tk.seq.length || tk.idx >= tk.seq.length) return;
-  if (!r) { if (!tk.gapStart) tk.gapStart = now; if (now - tk.gapStart > 60) tk.needRelease = false; tk.holdStart = 0; tk.holdCents = []; return; }
-  tk.gapStart = 0;
-  const written = r.note + 14;
-  if (written !== tk.lastHit) tk.needRelease = false;
-  if (tk.needRelease || written !== tk.seq[tk.idx].midi) { tk.holdStart = 0; tk.holdCents = []; return; }
-  if (!tk.holdStart) tk.holdStart = now;
-  tk.holdCents.push(r.cents);
-  if (now - tk.holdStart >= 200) {
-    tk.hits.push(median(tk.holdCents));
-    tk.idx++; tk.needRelease = true; tk.lastHit = written; tk.holdStart = 0; tk.holdCents = [];
-    renderPiece();
-  }
+function nextQuestion() {
+  clearTimeout(quiz.timer);
+  const all = notePool(weekIdx()), pool = all.filter(n => quiz.mode === "naam" || n.pos);
+  let n; do { n = pool[Math.floor(Math.random() * pool.length)]; } while (pool.length > 1 && n.key === quiz.prev);
+  quiz.cur = n; quiz.prev = n.key; quiz.locked = false;
+  drawQuizNote();
+  const box = $("quizAnswers"); box.innerHTML = "";
+  const opts = quiz.mode === "naam"
+    ? [...new Map(all.map(x => [x.naam, x.midi % 12])).entries()].sort((a, b) => a[1] - b[1]).map(e => e[0])
+    : [...new Set(all.filter(x => x.pos).map(x => x.pos))].sort((a, b) => a - b).map(String);
+  opts.forEach(v => { const b = document.createElement("button"); b.textContent = v; b.dataset.v = v; b.onclick = () => answerQuiz(b, v); box.append(b); });
+  const fb = $("quizFb"); fb.className = "quizfb"; fb.textContent = quiz.mode === "naam" ? "Welke noot is dit?" : "In welke positie speel je deze noot?";
 }
-function renderTarget(r) {
-  const t = currentTarget(), el = $("targetLine");
-  if (t === null) { el.hidden = true; return; }
-  el.hidden = false; el.innerHTML = "";
-  const tg = document.createElement("span"); tg.className = "tg";
-  const pos = positionsFor(t - 14);
-  tg.textContent = "Doel: " + nameOf(t) + (Math.floor(t / 12) - 1) + (tk.showPos && pos.length ? " · " + pos[0] + "e pos." : "");
-  el.append(tg);
-  if (r) {
-    const w = r.note + 14, s = document.createElement("span");
-    if (w === t) { s.className = cls(r.cents) === "good" ? "ok" : "dir"; s.textContent = cls(r.cents) === "good" ? "✓ Raak" : "Goede noot, nog niet zuiver"; }
-    else { s.className = "dir"; s.textContent = w < t ? "Hoger" : "Lager"; }
-    el.append(s);
+function drawQuizNote() {
+  const host = $("quizNote"); host.innerHTML = "";
+  if (!quiz.cur) return;
+  try { drawScore(host, { n: quiz.cur.key + "w", pos: false, letters: false, kaal: true }); }
+  catch (e) { host.textContent = quiz.cur.naam; }
+}
+function answerQuiz(btn, v) {
+  if (quiz.locked) return; quiz.locked = true;
+  const n = quiz.cur, right = quiz.mode === "naam" ? v === n.naam : +v === n.pos;
+  const info = n.naam + (n.pos ? ", " + n.pos + "e positie" : "");
+  const fb = $("quizFb");
+  if (right) { quiz.reeks++; btn.classList.add("right"); fb.className = "quizfb goodtxt"; fb.textContent = "Goed: " + info + "."; }
+  else {
+    quiz.reeks = 0; btn.classList.add("wrong");
+    const want = quiz.mode === "naam" ? n.naam : String(n.pos);
+    $("quizAnswers").querySelector('[data-v="' + want + '"]')?.classList.add("right");
+    fb.className = "quizfb badtxt"; fb.textContent = "Dit is " + info + ".";
   }
+  trainerRecord("noten", right);
+  quiz.timer = setTimeout(nextQuestion, right ? 700 : 1800);
 }
 
-function renderPiece() {
-  if (!tk.seq.length) return;
-  const done = tk.idx >= tk.seq.length;
-  $("pieceProgress").textContent = Math.min(tk.idx, tk.seq.length) + " / " + tk.seq.length;
-  drawPiece();
-  const sum = $("pieceSummary");
-  sum.hidden = !done; $("pieceHelp").hidden = done;
-  if (done) {
-    const avg = Math.round(tk.hits.reduce((a, b) => a + b, 0) / tk.hits.length);
-    const good = tk.hits.filter(c => Math.abs(c) <= 10).length;
+/* ===== RITME ===== */
+const RITMES = [
+  ["B4w", "B4h B4h", "B4h B4q B4q", "B4q B4q B4h", "B4q B4q B4q B4q", "B4h Rh", "B4q Rq B4h", "Rq B4q B4q B4q", "B4q B4q Rq B4q", "B4hd B4q"],
+  ["B48 B48 B4q B4h", "B4q B48 B48 B4q B4q", "B4q B4q B48 B48 B4q", "B48 B48 B48 B48 B4h", "Rq B48 B48 B4q B4q", "B4h B48 B48 B4q"],
+  ["B4qd B48 B4h", "B48 B4q B48 B4h", "B4q B48 B4q B48 B4q", "Rq B48 B48 B4qd B48", "B48 B4q B4q B48 B4q", "B4qd B48 B4qd B48"]
+];
+const DUR = { w: 4, hd: 3, h: 2, qd: 1.5, q: 1, "8": 0.5 };
+const rh = { pat: null, onsets: [], start: 0, spb: 1, taps: [], phase: "idle", timers: [] };
+function rhLevel() { const w = weekIdx(); return w < 2 ? 0 : w < 4 ? 1 : 2; }
+function newRhythm() {
+  const L = rhLevel(), lvl = Math.random() < 0.6 ? L : Math.floor(Math.random() * (L + 1));
+  const list = RITMES[lvl]; let p;
+  do { p = list[Math.floor(Math.random() * list.length)]; } while (list.length > 1 && p === rh.pat);
+  rh.pat = p; rh.onsets = []; let t = 0;
+  p.split(/\s+/).forEach(tok => { const r = REST_RX.exec(tok), m = NOTE_RX.exec(tok); if (m) rh.onsets.push(t); t += DUR[r ? r[1] : m[5]]; });
+  drawRhythm(); $("rhFb").textContent = ""; $("rhFb").className = "quizfb";
+}
+function drawRhythm() {
+  const host = $("rhScore"); host.innerHTML = "";
+  try { drawScore(host, { n: rh.pat, pos: false, letters: false, enkel: true }); } catch (e) { host.textContent = rh.pat; }
+}
+function rhClear() { rh.timers.forEach(clearTimeout); rh.timers = []; }
+function rhRun(listen) {
+  if (rh.phase !== "idle") return;
+  rhClear(); if (metro.running) metroStop(); if (drone) stopDrone();
+  const a = audio(), bpm = Math.min(90, LEERLIJN[weekIdx()].bpm), spb = 60 / bpm;
+  rh.spb = spb; rh.taps = []; rh.phase = listen ? "listen" : "tap";
+  const t0 = a.currentTime + 0.2, m0 = t0 + 4 * spb; rh.start = m0;
+  for (let i = 0; i < 4; i++) blip(t0 + i * spb, i === 0 ? 1600 : 1000);
+  for (let i = 0; i < 4; i++) blip(m0 + i * spb, i === 0 ? 1600 : 1000, 0.03, 0.2);
+  if (listen) rh.onsets.forEach(b => blip(m0 + b * spb, 440, 0.12, 0.6));
+  const zone = $("tapZone"); zone.disabled = listen;
+  const at = (sec, fn) => rh.timers.push(setTimeout(fn, Math.max(0, (sec - a.currentTime) * 1000)));
+  for (let i = 0; i < 4; i++) at(t0 + i * spb, () => { zone.textContent = String(4 - i); });
+  at(m0, () => { zone.textContent = listen ? "Luister…" : "Tik!"; });
+  at(m0 + 4 * spb + 0.35, () => { rh.phase === "tap" ? rhEvaluate() : null; rh.phase = "idle"; zone.disabled = true; zone.textContent = "Tik hier"; });
+  $("rhFb").textContent = ""; $("rhFb").className = "quizfb";
+}
+function rhTap() {
+  if (rh.phase !== "tap") return;
+  const a = audio(); rh.taps.push(a.currentTime);
+  const z = $("tapZone"); z.classList.remove("flash"); void z.offsetWidth; z.classList.add("flash");
+}
+/* Tikken komen altijd iets later binnen dan je hoort (scherm, speaker, oortjes).
+   Die vaste vertraging leert de app per apparaat en trekt hem eraf; daarna telt alleen
+   of je ritme klopt. Tolerantie: 120 ms, of minder bij snelle achtsten. */
+let tapLatency = 0.08;
+try { const v = parseFloat(localStorage.getItem("taplatency")); if (v >= -0.1 && v <= 0.35) tapLatency = v; } catch (e) {}
+function matchTaps(exp, taps, shift, tol) {
+  const used = new Set(), offs = [];
+  exp.forEach(e => {
+    let best = -1, bd = 9;
+    taps.forEach((t, i) => { const dd = Math.abs(t - shift - e); if (!used.has(i) && dd < bd) { bd = dd; best = i; } });
+    if (best >= 0 && bd <= tol) { used.add(best); offs.push(taps[best] - shift - e); }
+  });
+  return { used, offs };
+}
+function rhEvaluate() {
+  const exp = rh.onsets.map(b => rh.start + b * rh.spb), tol = Math.min(0.12, rh.spb * 0.25);
+  const taps = rh.taps.filter(t => t > rh.start - 0.3);
+  /* Bepaal de vaste vertraging van deze poging: mediaan van tik t.o.v. dichtstbijzijnde noot. */
+  const diffs = taps.map(t => exp.reduce((b, e) => Math.abs(t - e) < Math.abs(b) ? t - e : b, 9)).filter(d => d > -0.15 && d < 0.4).sort((a, b) => a - b);
+  const own = diffs.length >= 2 ? diffs[Math.floor(diffs.length / 2)] : tapLatency;
+  const shift = Math.max(-0.1, Math.min(0.35, (tapLatency + own) / 2));
+  const { used, offs } = matchTaps(exp, taps, shift, tol);
+  if (offs.length >= 2) { tapLatency = Math.max(-0.1, Math.min(0.35, tapLatency * 0.7 + own * 0.3)); try { localStorage.setItem("taplatency", tapLatency.toFixed(3)); } catch (e) {} }
+  const extra = taps.length - used.size, miss = exp.length - offs.length, perfect = !miss && !extra;
+  const avg = offs.length ? Math.round(offs.reduce((a, b) => a + b, 0) / offs.length * 1000) : 0;
+  const timing = !offs.length ? "" : Math.abs(avg) <= 30 ? " Precies op de tel." : avg > 0 ? " Iets achter de tel (" + avg + " ms)." : " Iets voor de tel (" + (-avg) + " ms).";
+  const fb = $("rhFb");
+  if (perfect) { fb.className = "quizfb goodtxt"; fb.textContent = "Strak! Alle " + exp.length + " noten raak." + timing; rh.timers.push(setTimeout(newRhythm, 2200)); }
+  else {
+    const tip = !taps.length ? " Ik heb geen tikken gezien: tik pas na de vier tikken vooraf." : extra && !miss ? " Tik niet op de rusten." : miss && !extra ? " Je miste een noot: luister eerst en tel mee." : " Probeer het nog eens, of luister eerst.";
+    fb.className = "quizfb badtxt"; fb.textContent = offs.length + " van " + exp.length + " noten raak" + (extra ? ", " + extra + " tik" + (extra > 1 ? "ken" : "") + " te veel" : "") + "." + timing + tip;
+  }
+  trainerRecord("ritme", perfect);
+}
+function renderTrainer() {
+  document.querySelectorAll("[data-qmode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.qmode === quiz.mode)));
+  if (!quiz.cur) nextQuestion(); else drawQuizNote();
+  if (!rh.pat) newRhythm(); else drawRhythm();
+  renderTrainerHead();
+}
+
+/* ===== EVENTS FASE 3 ===== */
+document.querySelectorAll("[data-qmode]").forEach(b => b.onclick = () => { quiz.mode = b.dataset.qmode; try { localStorage.setItem("quizmode", quiz.mode); } catch (e) {} quiz.reeks = 0; renderTrainer(); nextQuestion(); });
+$("rhStart").onclick = () => rhRun(false);
+$("rhListen").onclick = () => rhRun(true);
+$("rhNext").onclick = () => { if (rh.phase === "idle") newRhythm(); };
+$("tapZone").addEventListener("pointerdown", e => { e.preventDefault(); rhTap(); });
+document.addEventListener("keydown", e => {
+  if ($("tab-trainer").hidden) return;
+  if ((e.code === "Space" || e.key === " ") && rh.phase === "tap") { e.preventDefault(); rhTap(); }
+});
+$("toTrainer").onclick = () => document.querySelector('[data-tab="trainer"]').click();
+$("lettersToggle").onclick = () => { showLetters = !showLetters; try { localStorage.setItem("letters", showLetters ? "aan" : "uit"); } catch (e) {} renderLettersToggle(); rerenderScores(); };
+function renderLettersToggle() { $("lettersToggle").setAttribute("aria-pressed", String(showLetters)); $("lettersToggle").textContent = showLetters ? "Letters aan" : "Letters uit"; }
+
+/* ===== LIVE TUNER (tabblad) =====
+   Luistert via de microfoon: geschreven noot in Bes, positie, afwijking in cent.
+   Meespelen: een stuk uit de sessie wordt gevolgd noot voor noot. */
+const tuner = (() => {
+  const PARTIALS = [12, 19, 24, 28, 31, 36];          /* natuurtonen boven de grondtoon */
+  const positionsFor = concert => { const out = []; for (let p = 1; p <= 7; p++) for (const iv of PARTIALS) if (34 - (p - 1) + iv === concert) out.push(p); return out; };
+  const nameOf = m => NAMES_NL[((m % 12) + 12) % 12];
+  const cls = c => { const a = Math.abs(c); return a <= 10 ? "good" : a <= 25 ? "mid" : "off"; };
+  const median = a => { const s = a.slice().sort((p, q) => p - q); return s[Math.floor(s.length / 2)]; };
+  const PCs = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const tokMidi = (L, acc, oct) => (+oct + 1) * 12 + PCs[L] + (acc === "#" ? 1 : acc === "b" ? -1 : 0);
+
+  let A4 = 440;
+  try { const v = +localStorage.getItem("a4"); if (v >= 430 && v <= 450) A4 = v; } catch (e) {}
+  let actx = null, analyser = null, stream = null, raf = 0, wake = null, buf = null, hist = [], trace = [], lastShown = 0;
+  const N = 4096, yb = new Float32Array(N), d = new Float32Array(1024), dp = new Float32Array(1024);
+  const tk = { titel: "", n: "", maat: "4/4", tempo: 60, showPos: true, seq: [], idx: 0, hits: [], holdStart: 0, holdCents: [], needRelease: false, lastHit: null, gapStart: 0, doel: null };
+
+  /* --- microfoon --- */
+  async function start() {
+    $("tuErr").textContent = "";
+    actx = new (window.AudioContext || window.webkitAudioContext)();   /* direct in de tik: nodig voor Safari */
+    actx.resume?.();
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }); }
+    catch (e) {
+      $("tuErr").textContent = e && e.name === "NotAllowedError"
+        ? "Geen toegang tot de microfoon. Sta de microfoon toe voor deze site in je browserinstellingen en probeer het opnieuw."
+        : "De microfoon kon niet worden gestart. Sluit andere apps die de microfoon gebruiken en probeer het opnieuw.";
+      actx.close(); actx = null; return;
+    }
+    if (actx.state === "suspended") { try { await actx.resume(); } catch (e) {} }
+    const src = actx.createMediaStreamSource(stream);
+    analyser = actx.createAnalyser(); analyser.fftSize = N; src.connect(analyser);
+    buf = new Float32Array(N);
+    $("tuStart").textContent = "Stop"; $("tuPos").textContent = "Speel een lange toon";
+    try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {}
+    loop();
+  }
+  function stop() {
+    cancelAnimationFrame(raf); raf = 0;
+    stream?.getTracks().forEach(t => t.stop()); stream = null;
+    actx?.close(); actx = null; analyser = null;
+    try { wake?.release(); } catch (e) {} wake = null;
+    $("tuStart").textContent = "Start microfoon";
+    show(null);
+  }
+  const running = () => !!analyser;
+
+  /* --- YIN op ~12 kHz, bereik 55–800 Hz --- */
+  function detect(x, sr) {
+    const k = Math.max(1, Math.round(sr / 12000)), sr2 = sr / k, n = Math.floor(x.length / k);
+    let rms = 0;
+    for (let i = 0; i < n; i++) { let s = 0; for (let j = 0; j < k; j++) s += x[i * k + j]; yb[i] = s / k; rms += yb[i] * yb[i]; }
+    if (Math.sqrt(rms / n) < 0.006) return null;
+    const tauMin = Math.floor(sr2 / 800), tauMax = Math.min(Math.ceil(sr2 / 55), n - 1), W = Math.min(512, n - tauMax - 1);
+    if (W < 128) return null;
+    for (let tau = 1; tau <= tauMax; tau++) { let s = 0; for (let j = 0; j < W; j++) { const v = yb[j] - yb[j + tau]; s += v * v; } d[tau] = s; }
+    dp[0] = 1; let sum = 0;
+    for (let tau = 1; tau <= tauMax; tau++) { sum += d[tau]; dp[tau] = sum > 0 ? d[tau] * tau / sum : 1; }
+    let tau = -1;
+    for (let t = tauMin; t <= tauMax; t++) if (dp[t] < 0.15) { while (t + 1 <= tauMax && dp[t + 1] < dp[t]) t++; tau = t; break; }
+    if (tau < 0) return null;
+    let tt = tau;
+    if (tau > 1 && tau < tauMax) { const a = dp[tau - 1], b = dp[tau], c = dp[tau + 1], den = a - 2 * b + c; if (den) tt = tau + (a - c) / (2 * den); }
+    const f = sr2 / tt;
+    return f >= 55 && f <= 800 ? f : null;
+  }
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    if (!analyser) return;
+    analyser.getFloatTimeDomainData(buf);
+    const f = detect(buf, actx.sampleRate), now = performance.now();
+    if (f) {
+      hist.push(69 + 12 * Math.log2(f / A4)); if (hist.length > 5) hist.shift();
+      const m = median(hist), note = Math.round(m), cents = Math.round((m - note) * 100);
+      trace.push([now, cents]);
+      track({ note, cents }, now);
+      if (now - lastShown > 60) { show({ note, cents }); renderTarget({ note, cents }); lastShown = now; }
+    } else {
+      hist = []; track(null, now);
+      if (now - lastShown > 600) show(null, true);
+    }
+    trace = trace.filter(p => now - p[0] < 8000);
+    if (!$("tab-tuner").hidden) drawTrace(now);
+  }
+
+  /* --- weergave --- */
+  function show(r, keepTrace) {
+    if (!r) {
+      $("tuCard").classList.add("tu-idle");
+      $("tuName").textContent = "–"; $("tuOct").textContent = "";
+      $("tuCents").textContent = ""; $("tuCents").className = "tu-cents"; $("tuHint").textContent = "";
+      $("tuNeedle").className = "tu-needle"; $("tuNeedle").style.left = "calc(50% - 3px)";
+      if (!keepTrace) { trace = []; drawTrace(performance.now()); }
+      $("tuPos").textContent = analyser ? "Speel een lange toon" : "Druk op Start en speel een lange toon";
+      renderTarget(null); return;
+    }
+    $("tuCard").classList.remove("tu-idle");
+    const written = r.note + 14, c = cls(r.cents), pos = positionsFor(r.note);
+    $("tuName").textContent = nameOf(written); $("tuOct").textContent = String(Math.floor(written / 12) - 1);
+    $("tuPos").textContent = pos.length ? pos[0] + "e positie" + (pos.length > 1 ? " · ook " + pos.slice(1).map(p => p + "e").join(", ") : "") : "Geen natuurtoon in posities 1–7";
+    $("tuNeedle").style.left = "calc(" + (50 + Math.max(-50, Math.min(50, r.cents))) + "% - 3px)"; $("tuNeedle").className = "tu-needle " + c;
+    $("tuCents").textContent = (r.cents > 0 ? "+" : "") + r.cents + " cent"; $("tuCents").className = "tu-cents " + c;
+    $("tuHint").textContent = c === "good" ? "Zuiver" : r.cents > 0 ? "Te hoog: schuif iets verder uit" : "Te laag: schuif iets naar binnen";
+  }
+  function drawTrace(now) {
+    const cv = $("tuTrace"), w = cv.clientWidth, h = cv.clientHeight, dpr = devicePixelRatio || 1;
+    if (!w) return;
+    if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+    const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const cs = getComputedStyle(document.documentElement), tok = n => cs.getPropertyValue(n).trim();
+    const yOf = c => h / 2 - (Math.max(-50, Math.min(50, c)) / 50) * (h / 2 - 4);
+    g.fillStyle = tok("--ok-soft"); g.fillRect(0, yOf(10), w, yOf(-10) - yOf(10));
+    g.strokeStyle = tok("--line"); g.beginPath(); g.moveTo(0, h / 2 + .5); g.lineTo(w, h / 2 + .5); g.stroke();
+    const col = { good: tok("--ok"), mid: tok("--warn"), off: tok("--bad") };
+    trace.forEach(([t, c]) => { g.fillStyle = col[cls(c)]; g.beginPath(); g.arc(w - ((now - t) / 8000) * w, yOf(c), 2, 0, Math.PI * 2); g.fill(); });
+    const recent = trace.filter(p => now - p[0] < 3000).map(p => p[1]);
+    if (recent.length > 20) {
+      const mean = recent.reduce((a, b) => a + b, 0) / recent.length, dev = recent.reduce((a, b) => a + Math.abs(b - mean), 0) / recent.length;
+      $("tuSteady").textContent = dev < 5 ? "Heel stabiel" : dev < 10 ? "Redelijk stabiel" : "Wiebelt: blaas gelijkmatig";
+    } else $("tuSteady").textContent = "";
+  }
+  function setA4(v) { A4 = Math.max(430, Math.min(450, v)); $("tuCal").textContent = A4; try { localStorage.setItem("a4", A4); } catch (e) {} }
+
+  /* --- doelnoot en meespelen --- */
+  const currentTarget = () => tk.seq.length ? (tk.idx < tk.seq.length ? tk.seq[tk.idx].midi : null) : tk.doel;
+  function renderTarget(r) {
+    const t = currentTarget(), el = $("tuTarget");
+    if (t === null) { el.hidden = true; return; }
+    el.hidden = false; el.innerHTML = "";
+    const tg = document.createElement("span"); tg.className = "tg";
+    const pos = positionsFor(t - 14);
+    tg.textContent = "Doel: " + nameOf(t) + (Math.floor(t / 12) - 1) + (tk.showPos && pos.length ? " · " + pos[0] + "e pos." : "");
+    el.append(tg);
+    if (r) {
+      const w = r.note + 14, s = document.createElement("span");
+      if (w === t) { const good = cls(r.cents) === "good"; s.className = good ? "ok" : "dir"; s.textContent = good ? "✓ Raak" : "Goede noot, nog niet zuiver"; }
+      else { s.className = "dir"; s.textContent = w < t ? "Hoger" : "Lager"; }
+      el.append(s);
+    }
+  }
+  function track(r, now) {
+    if (!tk.seq.length || tk.idx >= tk.seq.length) return;
+    if (!r) { if (!tk.gapStart) tk.gapStart = now; if (now - tk.gapStart > 60) tk.needRelease = false; tk.holdStart = 0; tk.holdCents = []; return; }
+    tk.gapStart = 0;
+    const written = r.note + 14;
+    if (written !== tk.lastHit) tk.needRelease = false;
+    if (tk.needRelease || written !== tk.seq[tk.idx].midi) { tk.holdStart = 0; tk.holdCents = []; return; }
+    if (!tk.holdStart) tk.holdStart = now;
+    tk.holdCents.push(r.cents);
+    if (now - tk.holdStart >= 200) {
+      tk.hits.push(median(tk.holdCents));
+      tk.idx++; tk.needRelease = true; tk.lastHit = written; tk.holdStart = 0; tk.holdCents = [];
+      renderPiece();
+    }
+  }
+  function renderPiece() {
+    $("tuPiece").hidden = !tk.seq.length;
+    if (!tk.seq.length) return;
+    const done = tk.idx >= tk.seq.length;
+    $("tuProgress").textContent = Math.min(tk.idx, tk.seq.length) + " / " + tk.seq.length;
+    $("tuMetro").textContent = "Metronoom ♩ = " + tk.tempo;
+    $("tuMetro").setAttribute("aria-pressed", String(metro.running));
+    drawPiece();
+    const sum = $("tuSummary");
+    sum.hidden = !done; $("tuHelp").hidden = done;
+    if (!done) return;
+    const avg = Math.round(tk.hits.reduce((a, b) => a + b, 0) / tk.hits.length), good = tk.hits.filter(c => Math.abs(c) <= 10).length;
     const byNote = {};
     tk.seq.forEach((s, i) => { (byNote[s.midi] = byNote[s.midi] || []).push(tk.hits[i]); });
     sum.innerHTML = "";
     const h = document.createElement("b");
     h.textContent = "Klaar: " + good + " van " + tk.seq.length + " noten binnen 10 cent, gemiddeld " + (avg > 0 ? "+" : "") + avg + " cent.";
-    const chips = document.createElement("div"); chips.className = "chips";
+    const chips = document.createElement("div"); chips.className = "tu-chips";
     Object.keys(byNote).map(Number).sort((a, b) => a - b).forEach(m => {
       const c = Math.round(byNote[m].reduce((a, b) => a + b, 0) / byNote[m].length);
-      const ch = document.createElement("span"); ch.className = "chip " + cls(c);
-      const b = document.createElement("b"); b.textContent = nameOf(m); const em = document.createElement("em"); em.textContent = (c > 0 ? "+" : "") + c;
+      const ch = document.createElement("span"); ch.className = "tu-chip " + cls(c);
+      const b = document.createElement("b"); b.textContent = nameOf(m);
+      const em = document.createElement("em"); em.textContent = (c > 0 ? "+" : "") + c;
       ch.append(b, em); chips.append(ch);
     });
     sum.append(h, chips);
   }
-}
-function drawPiece() {
-  if (!tk.seq.length) return;
-  const host = $("pieceScore"); host.innerHTML = "";
-  const VF = window.Vex && (window.Vex.Flow || window.Vex);
-  if (!VF || !VF.Renderer) { host.textContent = tk.seq.map((s, i) => (i === tk.idx ? "[" : "") + nameOf(s.midi) + (i === tk.idx ? "]" : "")).join(" "); return; }
-  const cs = getComputedStyle(document.documentElement), tok = n => cs.getPropertyValue(n).trim();
-  const ink = tok("--ink"), col = { good: tok("--ok"), mid: tok("--warn"), off: tok("--bad") }, cur = tok("--brass");
-  const measures = tk.n.split("|").map(m => m.trim().split(/\s+/).filter(Boolean));
-  const W = Math.max(300, Math.floor(host.clientWidth || 340)), per = W < 440 ? 2 : W < 720 ? 3 : 4;
-  const lines = []; for (let i = 0; i < measures.length; i += per) lines.push(measures.slice(i, i + per));
-  const lineH = 118;
-  const renderer = new VF.Renderer(host, VF.Renderer.Backends.SVG); renderer.resize(W, lines.length * lineH + 6);
-  const ctx = renderer.getContext(); ctx.setFillStyle(ink); ctx.setStrokeStyle(ink);
-  let ni = 0, curEl = null;
-  lines.forEach((line, li) => {
-    const extra = 40 + (li === 0 ? 26 : 0), base = (W - 2 - extra) / per; let x = 0;
-    line.forEach((toks, mi) => {
-      const w = base + (mi === 0 ? extra : 0), stave = new VF.Stave(x, li * lineH, w);
-      if (mi === 0) stave.addClef("treble");
-      if (li === 0 && mi === 0) stave.addTimeSignature(tk.maat);
-      stave.setContext(ctx).draw();
-      const notes = toks.map(t => {
-        const r = REST_RX.exec(t);
-        if (r) return new VF.StaveNote({ keys: ["b/4"], duration: r[1] + "r" });
-        const m = NOTE_RX.exec(t), dur = m[5];
-        const note = new VF.StaveNote({ keys: [m[2].toLowerCase() + (m[3] || "") + "/" + m[4]], duration: dur, auto_stem: true });
-        if (m[3]) note.addModifier(new VF.Accidental(m[3]), 0);
-        if (dur.endsWith("d")) { if (VF.Dot && VF.Dot.buildAndAttach) VF.Dot.buildAndAttach([note], { all: true }); else if (note.addDotToAll) note.addDotToAll(); }
-        if (m[6] && tk.showPos) { const a = new VF.Annotation(m[6]); a.setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM); note.addModifier(a, 0); }
-        const i = ni++;
-        const c = i < tk.idx ? col[cls(tk.hits[i])] : i === tk.idx ? cur : null;
-        if (c) note.setStyle({ fillStyle: c, strokeStyle: c });
-        if (i === tk.idx) note._isCurrent = true;
-        return note;
+  function drawPiece() {
+    if (!tk.seq.length || $("tab-tuner").hidden) return;
+    const host = $("tuScore"); host.innerHTML = "";
+    const VF = window.Vex && (window.Vex.Flow || window.Vex);
+    if (!VF || !VF.Renderer) { host.textContent = tk.seq.map((s, i) => (i === tk.idx ? "[" : "") + nameOf(s.midi) + (i === tk.idx ? "]" : "")).join(" "); return; }
+    const cs = getComputedStyle(document.documentElement), tok = n => cs.getPropertyValue(n).trim();
+    const ink = tok("--ink"), col = { good: tok("--ok"), mid: tok("--warn"), off: tok("--bad") }, cur = tok("--brass");
+    const measures = tk.n.split("|").map(m => m.trim().split(/\s+/).filter(Boolean));
+    const W = Math.max(300, Math.floor(host.clientWidth || 340)), per = W < 440 ? 2 : W < 720 ? 3 : 4;
+    const lines = []; for (let i = 0; i < measures.length; i += per) lines.push(measures.slice(i, i + per));
+    const lineH = 118, [nb, bv] = tk.maat.split("/").map(Number);
+    const renderer = new VF.Renderer(host, VF.Renderer.Backends.SVG); renderer.resize(W, lines.length * lineH + 6);
+    const ctx2 = renderer.getContext(); ctx2.setFillStyle(ink); ctx2.setStrokeStyle(ink);
+    let ni = 0, curNote = null;
+    lines.forEach((line, li) => {
+      const extra = 40 + (li === 0 ? 26 : 0), base = (W - 2 - extra) / per; let x = 0;
+      line.forEach((toks, mi) => {
+        const w = base + (mi === 0 ? extra : 0), stave = new VF.Stave(x, li * lineH, w);
+        if (mi === 0) stave.addClef("treble");
+        if (li === 0 && mi === 0) stave.addTimeSignature(tk.maat);
+        stave.setContext(ctx2).draw();
+        const notes = toks.map(t => {
+          const r = REST_RX.exec(t);
+          if (r) return new VF.StaveNote({ keys: ["b/4"], duration: r[1] + "r" });
+          const m = NOTE_RX.exec(t), dur = m[5];
+          const note = new VF.StaveNote({ keys: [m[2].toLowerCase() + (m[3] || "") + "/" + m[4]], duration: dur, auto_stem: true });
+          if (m[3]) note.addModifier(new VF.Accidental(m[3]), 0);
+          if (dur.endsWith("d")) { if (VF.Dot && VF.Dot.buildAndAttach) VF.Dot.buildAndAttach([note], { all: true }); else if (note.addDotToAll) note.addDotToAll(); }
+          if (m[6] && tk.showPos) { const a = new VF.Annotation(m[6]); a.setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM); note.addModifier(a, 0); }
+          const i = ni++, c = i < tk.idx ? col[cls(tk.hits[i])] : i === tk.idx ? cur : null;
+          if (c) note.setStyle({ fillStyle: c, strokeStyle: c });
+          if (i === tk.idx) curNote = note;
+          return note;
+        });
+        const voice = new VF.Voice({ num_beats: nb || 4, beat_value: bv || 4 });
+        if (voice.setStrict) voice.setStrict(false); else if (voice.setMode) voice.setMode(VF.Voice.Mode.SOFT);
+        voice.addTickables(notes);
+        const beams = VF.Beam && VF.Beam.generateBeams ? VF.Beam.generateBeams(notes) : [];
+        new VF.Formatter().joinVoices([voice]).format([voice], Math.max(40, stave.getNoteEndX() - stave.getNoteStartX() - 10));
+        voice.draw(ctx2, stave); beams.forEach(b => b.setContext(ctx2).draw());
+        x += w;
       });
-      const voice = new VF.Voice({ num_beats: +tk.maat[0] || 4, beat_value: +tk.maat[2] || 4 });
-      if (voice.setStrict) voice.setStrict(false); else if (voice.setMode) voice.setMode(VF.Voice.Mode.SOFT);
-      voice.addTickables(notes);
-      const beams = VF.Beam && VF.Beam.generateBeams ? VF.Beam.generateBeams(notes) : [];
-      new VF.Formatter().joinVoices([voice]).format([voice], Math.max(40, stave.getNoteEndX() - stave.getNoteStartX() - 10));
-      voice.draw(ctx, stave); beams.forEach(b => b.setContext(ctx).draw());
-      notes.forEach(n => { if (n._isCurrent && n.getAttribute) curEl = n.getAttribute("el"); });
-      x += w;
     });
-  });
-  const svg = host.querySelector("svg");
-  if (svg) svg.querySelectorAll("[fill],[stroke]").forEach(el => ["fill", "stroke"].forEach(a => { const v = (el.getAttribute(a) || "").toLowerCase(); if (v === "black" || v === "#000" || v === "#000000") el.setAttribute(a, ink); }));
-  if (curEl && curEl.scrollIntoView) { try { curEl.scrollIntoView({ block: "nearest", inline: "center" }); } catch (e) {} }
-}
-$("pieceReset").onclick = () => { tk.idx = 0; tk.hits = []; tk.needRelease = false; tk.lastHit = null; renderPiece(); };
-let resizeT = null;
-addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(drawPiece, 200); });
+    const svg = host.querySelector("svg");
+    if (svg) svg.querySelectorAll("[fill],[stroke]").forEach(el => ["fill", "stroke"].forEach(a => { const v = (el.getAttribute(a) || "").toLowerCase(); if (v === "black" || v === "#000" || v === "#000000") el.setAttribute(a, ink); }));
+    try { const el = curNote?.getSVGElement?.() || curNote?.getAttribute?.("el"); el?.scrollIntoView?.({ block: "nearest", inline: "center" }); } catch (e) {}
+  }
+  function resetPiece() { tk.idx = 0; tk.hits = []; tk.needRelease = false; tk.lastHit = null; tk.holdStart = 0; tk.holdCents = []; }
+  function openPiece(sc, w, titel, tempo, fromTap) {
+    const toks = sc.n.split(/[\s|]+/).filter(Boolean);
+    if (!toks.every(t => NOTE_RX.test(t) || REST_RX.test(t))) return;
+    tk.n = sc.n; tk.maat = /^\d\/\d$/.test(sc.maat || "") ? sc.maat : "4/4"; tk.showPos = sc.pos !== false && showPos;
+    tk.titel = String(titel || "Oefening").slice(0, 80); tk.tempo = tempo || 60; tk.doel = null;
+    tk.seq = []; toks.forEach(t => { const m = NOTE_RX.exec(t); if (m) tk.seq.push({ midi: tokMidi(m[2], m[3], m[4]) }); });
+    resetPiece();
+    $("tuPieceTitle").textContent = tk.titel;
+    $("tuPieceEyebrow").textContent = w !== undefined && w !== null ? "Week " + (w + 1) + " · meespelen" : "Meespelen";
+    openTab(); renderPiece(); renderTarget(null);
+    if (fromTap && !analyser) start();
+  }
+  function openDoel(writtenMidi, fromTap) { tk.seq = []; tk.doel = writtenMidi; tk.showPos = true; renderPiece(); openTab(); renderTarget(null); if (fromTap && !analyser) start(); }
+  function closePiece() { tk.seq = []; tk.doel = null; renderPiece(); renderTarget(null); }
+  function openTab() { document.querySelector('[data-tab="tuner"]').click(); }
 
+  $("tuStart").onclick = () => analyser ? stop() : start();
+  $("tuCalDown").onclick = () => setA4(A4 - 1);
+  $("tuCalUp").onclick = () => setA4(A4 + 1);
+  $("tuReset").onclick = () => { resetPiece(); renderPiece(); };
+  $("tuClose").onclick = closePiece;
+  $("tuMetro").onclick = () => { if (metro.running) metroStop(); else { setBpm(tk.tempo); metroStart(); } renderPiece(); };
+  document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && analyser) { try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {} } });
+  if (!navigator.mediaDevices?.getUserMedia) { $("tuStart").disabled = true; $("tuErr").textContent = "Deze browser ondersteunt geen microfoon. Open de app in Safari of Chrome."; }
+  setA4(A4);
+  return { openPiece, openDoel, stop, running, redraw() { drawPiece(); drawTrace(performance.now()); }, track, tk, positionsFor };
+})();
 
-$("startBtn").onclick = () => analyser ? stop() : start();
-$("calDown").onclick = () => setA4(A4 - 1);
-$("calUp").onclick = () => setA4(A4 + 1);
-document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && analyser) { try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {} } });
-addEventListener("resize", () => drawTrace(performance.now()));
-setA4(A4); drawTrace(performance.now()); setupFromParams();
-if (!navigator.mediaDevices?.getUserMedia) { $("startBtn").disabled = true; $("errText").textContent = "Deze browser ondersteunt geen microfoon. Open de pagina in Safari of Chrome."; }
+/* ===== EVENTS ===== */
+$("posToggle").onclick = () => { showPos = !showPos; try { localStorage.setItem("posities", showPos ? "aan" : "uit"); } catch (e) {} renderPosToggle(); rerenderScores(); };
+$("startBtn").onclick =() => sess.running ? sessPause() : sessStart();
+$("skipBtn").onclick = () => nextBlock(false);
+$("resetBtn").onclick = sessReset;
+$("miniMinus").onclick = () => setBpm(metro.bpm - 2);
+$("miniPlus").onclick = () => setBpm(metro.bpm + 2);
+$("miniToggle").onclick = () => { sess.useMetro = !sess.useMetro; if (!sess.useMetro && metro.running) metroStop(); if (sess.useMetro && sess.running) metroStart(); renderSession(); };
+$("metroBtn").onclick = () => metro.running ? metroStop() : metroStart();
+$("bpmRange").oninput = e => setBpm(+e.target.value);
+$("m5").onclick = () => setBpm(metro.bpm - 5); $("m1").onclick = () => setBpm(metro.bpm - 1);
+$("p1").onclick = () => setBpm(metro.bpm + 1); $("p5").onclick = () => setBpm(metro.bpm + 5);
+document.querySelectorAll("[data-meter]").forEach(b => b.onclick = () => { metro.meter = +b.dataset.meter; metro.beat = 0; renderMetro(); });
+let taps = [];
+$("tapBtn").onclick = () => { const t = performance.now(); taps = taps.filter(x => t - x < 3000).concat(t); if (taps.length > 1) { const avg = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); setBpm(60000 / avg); } };
+$("prevWeek").onclick = () => { viewWeek = Math.max(0, weekIdx() - 1); sessReset(); renderWeek(); quiz.cur = null; rh.pat = null; if (!$("tab-trainer").hidden) renderTrainer(); };
+$("nextWeek").onclick = () => { viewWeek = Math.min(LEERLIJN.length - 1, weekIdx() + 1); sessReset(); renderWeek(); quiz.cur = null; rh.pat = null; if (!$("tab-trainer").hidden) renderTrainer(); };
+$("notenCheck").onchange = e => saveToday({ noten: e.target.checked });
+$("noteField").onchange = e => saveToday({ notitie: e.target.value.trim() });
+$("manualBtn").onclick = () => saveToday({ handmatig: true, week: weekIdx() + 1 });
+$("cpScale").onchange = e => saveSettings({ scale: e.target.checked });
+$("cpSight").onchange = e => saveSettings({ sight: e.target.checked });
+$("startDate").onchange = e => { if (e.target.value) { viewWeek = null; saveSettings({ start: e.target.value }); } };
+document.querySelectorAll("[data-tab]").forEach(btn => btn.onclick = () => {
+  document.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", String(b === btn)));
+  document.querySelectorAll(".tabpanel").forEach(p => p.hidden = p.id !== "tab-" + btn.dataset.tab);
+  try { localStorage.setItem("tab", btn.dataset.tab); } catch (e) {}
+  if (btn.dataset.tab === "vandaag") rerenderScores();
+  if (btn.dataset.tab === "trainer") renderTrainer();
+  if (btn.dataset.tab === "tuner") tuner.redraw(); else if (tuner.running()) tuner.stop();
+  if (btn.dataset.tab !== "trainer") { rhClear(); rh.phase = "idle"; $("tapZone").disabled = true; $("tapZone").textContent = "Tik hier"; }
+});
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && sess.running) lockScreen(); });
+
+try { const t = localStorage.getItem("tab"); if (t) document.querySelector('[data-tab="' + t + '"]')?.click(); } catch (e) {}
+$("blocks").innerHTML = BLOKKEN.map(b => '<div class="blk"><div class="bar"><i></i></div><span>' + b.naam + "</span></div>").join("");
+fillDroneSelect();
+$("bkSave").onclick = saveBackup;
+$("bkFile").onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; loadBackup(f); };
+renderPosToggle(); renderLettersToggle(); renderMetro(); renderAll(); connectDb();
+(() => {
+  const q = new URLSearchParams(location.search), n = q.get("n"), doel = /^([A-G])(#|b)?(\d)$/.exec(q.get("doel") || "");
+  if (n) tuner.openPiece({ n: n.slice(0, 2000), maat: q.get("maat"), pos: q.get("pos") === "0" ? false : undefined }, (parseInt(q.get("w"), 10) || 1) - 1, q.get("t") || "Oefening", 60, false);
+  else if (doel) tuner.openDoel((+doel[3] + 1) * 12 + { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[doel[1]] + (doel[2] === "#" ? 1 : doel[2] === "b" ? -1 : 0), false);
+  else if (q.has("tuner")) document.querySelector('[data-tab="tuner"]').click();
+})();
 </script>
+
 </body>
 </html>
