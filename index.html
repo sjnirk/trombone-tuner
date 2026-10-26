@@ -116,7 +116,11 @@ input[type=range] { width: 100%; accent-color: var(--brass); }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .seg button { border: 0; border-radius: 0; min-width: 48px; }
 .seg button[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); }
-.mini { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mini { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--line); }
+.mini button, button.sm { min-height: 40px; padding: 6px 12px; font-size: .92rem; }
+body.insessie .calm { display: none; }
+.bib-item .row button { min-height: 40px; padding: 6px 14px; }
+.more { align-self: center; }
 .mini .val { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; min-width: 3ch; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* Logboek */
@@ -244,7 +248,9 @@ button[aria-pressed="true"]#tuPlay, .pp button[aria-pressed="true"] { background
 .mijlpalen li.ok::before { content: "✓"; color: var(--ok); font-weight: 800; }
 .mijlpalen small { display: block; font-size: .8rem; color: var(--muted); }
 .rein-goal { text-align: center; margin: 12px 0 4px; font-size: 1.05rem; }
-#reinIv { flex-wrap: wrap; }
+.pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.pick button { min-height: 40px; padding: 6px 12px; font-size: .92rem; }
+.pick button[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); border-color: var(--brass); }
 #reinCard .tu-zone { left: 45%; width: 10%; }
 .tu-target { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; min-height: 1.5em; font-weight: 700; }
 .tu-target .tg { padding: 3px 10px; border-radius: 999px; background: var(--brass-soft); color: var(--brass-ink); }
@@ -324,7 +330,7 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
       <div class="row">
         <button class="primary" id="startBtn">Start sessie</button>
         <button id="skipBtn">Volgend blok</button>
-        <button class="ghost" id="resetBtn">Opnieuw</button>
+        <button class="ghost sm" id="resetBtn">Opnieuw</button>
       </div>
       <div class="mini">
         <span class="muted">Metronoom</span>
@@ -343,20 +349,20 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
       <div class="row spread">
         <h2 id="stepsTitle">Wat je nu speelt</h2>
         <div class="row">
-          <button class="ghost" id="posToggle" aria-pressed="true">Posities aan</button>
-          <button class="ghost" id="lettersToggle" aria-pressed="false">Letters uit</button>
+          <button class="ghost sm" id="posToggle" aria-pressed="true">Posities aan</button>
+          <button class="ghost sm" id="lettersToggle" aria-pressed="false">Letters uit</button>
         </div>
       </div>
       <div class="scores" id="scores"></div>
       <ul class="steps" id="steps"></ul>
     </div>
 
-    <details class="card theory" id="theory">
+    <details class="card theory calm" id="theory">
       <summary><span class="eyebrow">Theorie</span> <b id="theoryTitle"></b></summary>
       <div class="theorybody" id="theoryBody"></div>
     </details>
 
-    <div class="card">
+    <div class="card calm">
       <div class="check">
         <input type="checkbox" id="notenCheck">
         <label for="notenCheck"><b>5 minuten noten en ritme</b>, zonder trombone<br><span class="muted" id="notenText"></span></label>
@@ -369,7 +375,7 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <span class="status" id="saveStatus"></span>
       </div>
     </div>
-    <div class="card" id="uitdagingCard">
+    <div class="card calm" id="uitdagingCard">
       <div class="row spread"><span class="eyebrow">Uitdaging van deze week</span><span class="chip" id="udChip"></span></div>
       <p id="udText" style="margin:6px 0 8px;font-weight:700"></p>
       <div class="progress"><i id="udBar"></i></div>
@@ -547,7 +553,7 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
       <div class="row">
         <label class="vh" for="reinRoot">Grondtoon</label>
         <select id="reinRoot"></select>
-        <div class="seg" role="group" aria-label="Interval" id="reinIv"></div>
+        <div class="pick" role="group" aria-label="Interval" id="reinIv"></div>
       </div>
       <div class="rein-goal" id="reinGoal"></div>
       <div class="tu-meter" aria-hidden="true">
@@ -601,24 +607,22 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <ul class="notes" id="notesList"></ul>
       </div>
       <div class="card">
-        <label class="eyebrow" for="startDate">Startdatum leerlijn</label>
-        <input type="date" id="startDate">
-        <p class="status" id="dbStatus">Opslag openen…</p>
-      </div>
-      <div class="card">
         <h2>Delen met je leraar</h2>
         <p class="muted">Een verslag van de laatste 4 weken: oefendagen, stukken en tempo's, op tempo gespeeld, intonatie per positie en je notities. Je leraar opent het in elke browser, zonder account, en kan je via een link een opgave terugsturen.</p>
         <div class="row"><button id="repShare">Deel verslag</button></div>
         <p class="status" id="repStatus"></p>
       </div>
       <div class="card">
-        <h2>Backup</h2>
+        <h2>Gegevens en backup</h2>
         <p class="muted">Je log, voortgang en notities staan alleen op dit toestel, nergens online. Bewaar af en toe een backup, bijvoorbeeld in Bestanden of iCloud Drive. Met dezelfde backup zet je alles over naar een ander toestel.</p>
         <div class="row">
           <button id="bkSave">Bewaar backup</button>
           <label class="filebtn">Backup terugzetten<input type="file" id="bkFile" class="vh" accept="application/json,.json"></label>
         </div>
         <p class="status" id="bkStatus"></p>
+        <label class="eyebrow" for="startDate" style="margin-top:12px">Startdatum leerlijn</label>
+        <input type="date" id="startDate">
+        <p class="status" id="dbStatus">Opslag openen…</p>
       </div>
       <div class="card" id="cloudCard" hidden>
         <h2>Online opslag</h2>
@@ -822,14 +826,14 @@ function unlockScreen() { try { wakeLock?.release(); } catch (e) {} wakeLock = n
 function sessStart() {
   audio();
   if (sessMic && !tuner.running()) { sess.micByUs = true; sessionFollow(); tuner.start(); }
-  sess.running = true; sess.last = performance.now();
+  sess.running = true; sess.last = performance.now(); document.body.classList.add("insessie");
   sess.interval = setInterval(sessTick, 200); lockScreen();
   setBpm(blockTempo());
   if (sess.useMetro && !metro.running) metroStart();
   renderSession();
 }
 function sessPause() {
-  sess.running = false; clearInterval(sess.interval); unlockScreen();
+  sess.running = false; document.body.classList.remove("insessie"); clearInterval(sess.interval); unlockScreen();
   if (metro.running) metroStop();
   if (sess.micByUs && tuner.running()) tuner.stop();
   sess.micByUs = false;
@@ -1421,7 +1425,8 @@ function renderPieces() {
   const cw = currentWeekIdx(), items = [];
   for (let w = 0; w <= cw; w++) LEERLIJN[w].blokken.forEach((b, bi) => b.sc.forEach((sc, i) => items.push(pieceMeta(w, bi, i))));
   box.innerHTML = "";
-  items.reverse().forEach(m => {
+  const list = items.reverse().filter(m => { const st = pieceStatus(m.id, m.w); return m.w === cw || st.gestart || st.beheerst || st.struggling; });
+  list.forEach(m => {
     const st = pieceStatus(m.id, m.w), li = document.createElement("li");
     const name = document.createElement("span"); name.textContent = "W" + m.week + " · " + m.titel;
     const chip = document.createElement("span"); chip.className = "chip";
@@ -1694,6 +1699,7 @@ function renderPositions() {
     } else { val.textContent = a ? "te weinig" : "–"; val.classList.add("muted"); }
     bar.append(fill); row.append(lab, bar, val); box.append(row);
   }
+  if (!any) box.innerHTML = "";
   const tune = tuningAdvice(agg);
   $("posTip").textContent = !any ? "Nog geen metingen. Speel met de microfoon aan (sessie of tuner); elke noot die je even vasthoudt telt mee."
     : tune ? tune : worst ? posAdvice(worst.p, worst.avg) : "Al je posities zitten gemiddeld binnen 10 cent. Mooi zo.";
@@ -2801,7 +2807,8 @@ function renderBib() {
     e.textContent = bibFilter === "eigen" ? "Nog geen eigen stukken. Voeg er een toe als MusicXML (bijvoorbeeld geëxporteerd uit MuseScore)." : "Nog geen stukken die bij jouw noten passen. Speel eerst je leerlijn verder; bij Alle zie je wat er komt.";
     box.append(e); return;
   }
-  items.forEach(p => {
+  const shown = bibAll || items.length <= 6 ? items : items.slice(0, 5);
+  shown.forEach(p => {
     const li = document.createElement("div"); li.className = "bib-item";
     const head = document.createElement("div"); head.className = "bib-head";
     const tt = document.createElement("b"); tt.textContent = p.t;
@@ -2824,7 +2831,14 @@ function renderBib() {
       row.append(del); }
     li.append(head, info, row); box.append(li);
   });
+  if (items.length > 6) {
+    const more = document.createElement("button"); more.className = "ghost sm more";
+    more.textContent = bibAll ? "Toon minder" : "Toon alle " + items.length + " stukken";
+    more.onclick = () => { bibAll = !bibAll; renderBib(); };
+    box.append(more);
+  }
 }
+let bibAll = false;
 
 document.querySelectorAll("[data-bibf]").forEach(b => b.onclick = () => { bibFilter = b.dataset.bibf; try { localStorage.setItem("bibfilter", bibFilter); } catch (e) {} renderBib(); });
 $("bibFile").onchange = e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; importMusicXML(f); };
