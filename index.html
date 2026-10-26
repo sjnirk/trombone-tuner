@@ -209,6 +209,13 @@ button[aria-pressed="true"]#tuPlay, .pp button[aria-pressed="true"] { background
 .bib-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 [data-bibf][aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); }
 
+/* Oefenstand */
+.tu-practice { border-top: 1px dashed var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.tu-practice summary { cursor: pointer; font-weight: 700; color: var(--brass-ink); }
+.tu-practice[open] summary { margin-bottom: 6px; }
+.tu-pcttxt { font-variant-numeric: tabular-nums; font-weight: 700; }
+#tuLoop[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass-ink); border-color: var(--brass); }
+
 /* Tuner */
 .tu-note { display: flex; align-items: baseline; justify-content: center; gap: 6px; min-height: 8rem; }
 .tu-note b { font-family: var(--font-display); font-weight: 800; font-size: clamp(5.5rem, 32vw, 8.5rem); line-height: .9; }
@@ -370,6 +377,17 @@ nav.tabs button[aria-selected="true"] { color: var(--brass-ink); background: var
         <div class="tu-score" id="tuScore"></div>
         <p class="status" id="tuHelp">Speel het stuk: de noot die aan de beurt is licht op en schuift door zodra je hem raakt. Elke geraakte noot kleurt naar hoe zuiver hij was.</p>
         <div class="tu-summary" id="tuSummary" hidden></div>
+        <details class="tu-practice" id="tuPractice">
+          <summary>Oefenstand: tempo en maten</summary>
+          <div class="row spread"><label for="tuPct">Tempo</label><span class="tu-pcttxt" id="tuPctTxt"></span></div>
+          <input type="range" id="tuPct" min="50" max="100" step="5" value="100">
+          <div class="row">
+            <label for="tuFrom">Maat</label><select id="tuFrom"></select>
+            <label for="tuTo">t/m</label><select id="tuTo"></select>
+            <button id="tuLoop" aria-pressed="false">Herhalen uit</button>
+          </div>
+          <p class="status" id="tuPracticeMsg" role="status"></p>
+        </details>
         <div class="row">
           <button id="tuPlay" aria-pressed="false">Voorspelen</button>
           <button id="tuReset">Opnieuw</button>
@@ -1828,6 +1846,7 @@ const tuner = (() => {
       tk.hits.push(median(tk.holdCents));
       tk.idx++; tk.needRelease = true; tk.lastHit = written; tk.holdStart = 0; tk.holdCents = []; notify(r);
       renderPiece();
+      if (tk.idx >= tk.seq.length && tk.full) roundDone();
     }
   }
   function renderPiece() {
@@ -1910,31 +1929,53 @@ const tuner = (() => {
   const listeners = [];
   function notify(r) { listeners.forEach(f => { try { f(r); } catch (e) {} }); }
   function state() { return { target: currentTarget(), idx: tk.idx, total: tk.seq.length, done: tk.seq.length > 0 && tk.idx >= tk.seq.length, hits: tk.hits.slice() }; }
+  /* Oefenstand (#22): tempo in procenten, een reeks maten, herhalen, na 3 schone rondes 5 % sneller. */
   function loadPiece(sc, w, titel, tempo) {
     const toks = sc.n.split(/[\s|]+/).filter(Boolean);
     if (!toks.every(t => NOTE_RX.test(t) || REST_RX.test(t))) return false;
-    tk.n = sc.n; tk.maat = /^\d\/\d$/.test(sc.maat || "") ? sc.maat : "4/4"; tk.showPos = sc.pos !== false && showPos;
-    tk.titel = String(titel || "Oefening").slice(0, 80); tk.tempo = tempo || 60; tk.doel = null; tk.sc = sc;
-    tk.seq = []; toks.forEach(t => { const m = NOTE_RX.exec(t); if (m) tk.seq.push({ midi: tokMidi(m[2], m[3], m[4]) }); });
-    resetPiece();
+    tk.full = { sc, tempo: tempo || 60 };
+    tk.maat = /^\d\/\d$/.test(sc.maat || "") ? sc.maat : "4/4"; tk.showPos = sc.pos !== false && showPos;
+    tk.titel = String(titel || "Oefening").slice(0, 80); tk.doel = null;
+    tk.pct = 100; tk.from = 1; tk.to = sc.n.split("|").length; tk.loop = false; tk.clean = 0; tk.msg = "";
     $("tuPieceTitle").textContent = tk.titel;
     $("tuPieceEyebrow").textContent = w !== undefined && w !== null ? "Week " + (w + 1) + " · meespelen" : "Meespelen";
-    renderPiece(); renderTarget(null); notify(null);
+    applyPractice();
     return true;
+  }
+  function applyPractice() {
+    const bars = tk.full.sc.n.split("|");
+    tk.from = Math.max(1, Math.min(tk.from, bars.length)); tk.to = Math.max(tk.from, Math.min(tk.to, bars.length));
+    const sub = bars.slice(tk.from - 1, tk.to).map(b => b.trim()).join(" | ");
+    tk.sc = Object.assign({}, tk.full.sc, { n: sub }); tk.n = sub;
+    tk.tempo = Math.max(30, Math.round(tk.full.tempo * tk.pct / 100));
+    tk.seq = []; sub.split(/[\s|]+/).forEach(t => { const m = NOTE_RX.exec(t); if (m) tk.seq.push({ midi: tokMidi(m[2], m[3], m[4]) }); });
+    resetPiece(); renderPractice(); renderPiece(); renderTarget(null); notify(null);
+    if (metro.running) setBpm(tk.tempo);
+  }
+  function renderPractice() {
+    if (!tk.full) return;
+    const n = tk.full.sc.n.split("|").length, opts = Array.from({ length: n }, (_, i) => '<option value="' + (i + 1) + '">' + (i + 1) + "</option>").join("");
+    if ($("tuFrom").options.length !== n) { $("tuFrom").innerHTML = opts; $("tuTo").innerHTML = opts; }
+    $("tuFrom").value = tk.from; $("tuTo").value = tk.to; $("tuPct").value = tk.pct;
+    $("tuPctTxt").textContent = tk.pct + " % · ♩ = " + tk.tempo;
+    $("tuLoop").setAttribute("aria-pressed", String(tk.loop)); $("tuLoop").textContent = tk.loop ? "Herhalen aan" : "Herhalen uit";
+    $("tuPracticeMsg").textContent = tk.msg || (tk.loop ? "Na 3 schone rondes (alle noten binnen 25 cent) gaat het tempo 5 % omhoog." : "");
+  }
+  function roundDone() {
+    const clean = tk.hits.length && tk.hits.every(c => Math.abs(c) <= 25);
+    tk.clean = clean ? tk.clean + 1 : 0;
+    tk.msg = "";
+    if (tk.loop && tk.clean >= 3 && tk.pct < 100) { tk.pct = Math.min(100, tk.pct + 5); tk.clean = 0; tk.msg = "Drie keer schoon: tempo naar " + tk.pct + " %."; tk.tempo = Math.max(30, Math.round(tk.full.tempo * tk.pct / 100)); if (metro.running) setBpm(tk.tempo); }
+    else if (tk.loop && clean) tk.msg = tk.clean + " van 3 schone rondes.";
+    renderPractice();
+    if (tk.loop) setTimeout(() => { if (tk.seq.length && tk.idx >= tk.seq.length) { resetPiece(); renderPiece(); notify(null); } }, 1500);
   }
   function follow(sc, w, titel, tempo) { return loadPiece(sc, w, titel, tempo); }
   function target(writtenMidi) { tk.seq = []; tk.doel = writtenMidi; tk.showPos = true; renderPiece(); renderTarget(null); notify(null); }
   function restart() { resetPiece(); renderPiece(); notify(null); }
   function openPiece(sc, w, titel, tempo, fromTap) {
-    const toks = sc.n.split(/[\s|]+/).filter(Boolean);
-    if (!toks.every(t => NOTE_RX.test(t) || REST_RX.test(t))) return;
-    tk.n = sc.n; tk.maat = /^\d\/\d$/.test(sc.maat || "") ? sc.maat : "4/4"; tk.showPos = sc.pos !== false && showPos;
-    tk.titel = String(titel || "Oefening").slice(0, 80); tk.tempo = tempo || 60; tk.doel = null; tk.sc = sc;
-    tk.seq = []; toks.forEach(t => { const m = NOTE_RX.exec(t); if (m) tk.seq.push({ midi: tokMidi(m[2], m[3], m[4]) }); });
-    resetPiece();
-    $("tuPieceTitle").textContent = tk.titel;
-    $("tuPieceEyebrow").textContent = w !== undefined && w !== null ? "Week " + (w + 1) + " · meespelen" : "Meespelen";
-    openTab(); renderPiece(); renderTarget(null);
+    if (!loadPiece(sc, w, titel, tempo)) return;
+    openTab();
     if (fromTap && !analyser) start();
   }
   function openDoel(writtenMidi, fromTap) { tk.seq = []; tk.doel = writtenMidi; tk.showPos = true; renderPiece(); openTab(); renderTarget(null); if (fromTap && !analyser) start(); }
@@ -1947,10 +1988,14 @@ const tuner = (() => {
   $("tuReset").onclick = () => { resetPiece(); renderPiece(); };
   $("tuClose").onclick = closePiece;
   $("tuMetro").onclick = () => { if (metro.running) metroStop(); else { setBpm(tk.tempo); metroStart(); } renderPiece(); };
+  $("tuPct").oninput = e => { tk.pct = +e.target.value; tk.tempo = Math.max(30, Math.round(tk.full.tempo * tk.pct / 100)); tk.clean = 0; tk.msg = ""; if (metro.running) setBpm(tk.tempo); renderPractice(); renderPiece(); };
+  $("tuFrom").onchange = e => { tk.from = +e.target.value; if (tk.to < tk.from) tk.to = tk.from; tk.clean = 0; tk.msg = ""; applyPractice(); };
+  $("tuTo").onchange = e => { tk.to = +e.target.value; if (tk.from > tk.to) tk.from = tk.to; tk.clean = 0; tk.msg = ""; applyPractice(); };
+  $("tuLoop").onclick = () => { tk.loop = !tk.loop; tk.clean = 0; tk.msg = ""; renderPractice(); };
   document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && analyser) { try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {} } });
   if (!navigator.mediaDevices?.getUserMedia) { $("tuStart").disabled = true; $("tuErr").textContent = "Deze browser ondersteunt geen microfoon. Open de app in Safari of Chrome."; }
   setA4(A4);
-  return { openPiece, openDoel, follow, target, restart, state, start: () => analyser ? Promise.resolve() : start(), onUpdate: f => listeners.push(f), onNote: f => noteListeners.push(f), setPaused: v => { paused = !!v; if (paused) { seg = null; resetHold(); } }, stop, running, redraw() { drawPiece(); drawTrace(performance.now()); }, track, tk, positionsFor };
+  return { openPiece, openDoel, follow, target, restart, state, start: () => analyser ? Promise.resolve() : start(), practice: () => ({ sc: tk.sc, tempo: tk.tempo, from: tk.from, to: tk.to }), onUpdate: f => listeners.push(f), onNote: f => noteListeners.push(f), setPaused: v => { paused = !!v; if (paused) { seg = null; resetHold(); } }, stop, running, redraw() { drawPiece(); drawTrace(performance.now()); }, track, tk, positionsFor };
 })();
 
 /* ===== MEELUISTEREN TIJDENS DE SESSIE =====
