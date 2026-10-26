@@ -59,7 +59,22 @@ a { color: var(--brass-ink); font-weight: 700; }
 canvas { width: 100%; height: 110px; display: block; }
 .cal { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 5ch; text-align: center; }
 .idle .note b, .idle .cents { color: var(--line); }
-@media (prefers-reduced-motion: reduce) { .needle { transition: none; } }
+.target { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; min-height: 1.5em; font-weight: 700; }
+.target .tg { padding: 3px 10px; border-radius: 999px; background: var(--brass-soft); color: var(--brass-ink); }
+.target .ok { color: var(--ok); } .target .dir { color: var(--warn); }
+.score { overflow-x: auto; min-width: 0; }
+.score svg { display: block; }
+.summary { display: flex; flex-direction: column; gap: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.chip b { font-weight: 700; } .chip.good em { color: var(--ok); } .chip.mid em { color: var(--warn); } .chip.off em { color: var(--bad); }
+.chip em { font-style: normal; font-weight: 700; }
+.rec { display: inline-flex; align-items: center; gap: 8px; }
+.rec i { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+audio { width: 100%; }
+.big { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; }
+@media (prefers-reduced-motion: reduce) { .needle { transition: none; } .rec i { animation: none; } }
 </style>
 </head>
 <body>
@@ -80,6 +95,27 @@ canvas { width: 100%; height: 110px; display: block; }
     <div class="labels"><span>−50 te laag</span><span>0</span><span>te hoog +50</span></div>
     <div class="cents" id="centsText"></div>
     <p class="hint" id="hintText"></p>
+    <div class="target" id="targetLine" hidden></div>
+  </div>
+
+  <div class="card" id="pieceCard" hidden>
+    <div class="row spread">
+      <div><p class="eyebrow" id="pieceEyebrow">Uit je app</p><b class="big" id="pieceTitle"></b></div>
+      <span class="status" id="pieceProgress"></span>
+    </div>
+    <div class="score" id="pieceScore"></div>
+    <p class="status" id="pieceHelp">Speel het stuk: de noot die aan de beurt is licht op en schuift door zodra je hem raakt. Elke geraakte noot kleurt naar hoe zuiver hij was.</p>
+    <div class="summary" id="pieceSummary" hidden></div>
+    <div class="row"><button id="pieceReset">Opnieuw</button></div>
+  </div>
+
+  <div class="card">
+    <div class="row spread"><b>Opnemen</b><span class="rec" id="recState" hidden><i></i><span id="recTime">0:00</span></span></div>
+    <p class="status" id="recHelp">Neem op terwijl je speelt. Daarna bewaar je de opname op je telefoon en kies je hem in je app bij Opnames → Opname toevoegen. Daar wordt hij bewaard en per noot geanalyseerd.</p>
+    <div class="row"><button id="recBtn" disabled>Start opname</button></div>
+    <audio id="recAudio" controls hidden></audio>
+    <div class="row"><button class="primary" id="saveBtn" hidden>Bewaar opname</button><button id="discardBtn" hidden>Weggooien</button></div>
+    <p class="status" id="recStatus" role="status"></p>
   </div>
 
   <div class="card">
@@ -93,11 +129,12 @@ canvas { width: 100%; height: 110px; display: block; }
       <span>Stemming A =</span>
       <div class="row"><button id="calDown" aria-label="Lager">−</button><span class="cal" id="calText">440</span><button id="calUp" aria-label="Hoger">+</button></div>
     </div>
-    <p class="status">Noten staan geschreven zoals op jouw blad (Bes-notatie): een geschreven C klinkt als Bes. Leg de telefoon op de lessenaar, ongeveer een meter voor de beker. Er wordt niets opgenomen of opgeslagen.</p>
+    <p class="status">Noten staan geschreven zoals op jouw blad (Bes-notatie): een geschreven C klinkt als Bes. Leg de telefoon op de lessenaar, ongeveer een meter voor de beker. Alles blijft op je telefoon: er wordt niets verstuurd, en alleen opgenomen als jij op Start opname drukt.</p>
     <p class="status" id="errText" role="alert"></p>
   </div>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/vexflow@4.2.3/build/cjs/vexflow-bravura.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const NAMES = ["C", "Cis", "D", "Es", "E", "F", "Fis", "G", "As", "A", "Bes", "B"];
@@ -131,10 +168,13 @@ async function start() {
   analyser = ctx.createAnalyser(); analyser.fftSize = N; src.connect(analyser);
   buf = new Float32Array(N);
   $("startBtn").textContent = "Stop"; $("posText").textContent = "Speel een lange toon";
+  $("recBtn").disabled = !window.MediaRecorder;
   try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {}
   loop();
 }
 function stop() {
+  if (rec && rec.state === "recording") rec.stop();
+  $("recBtn").disabled = true;
   cancelAnimationFrame(raf); raf = 0;
   stream?.getTracks().forEach(t => t.stop()); stream = null;
   ctx?.close(); ctx = null; analyser = null;
@@ -178,9 +218,11 @@ function loop() {
     hist.push(midi); if (hist.length > 5) hist.shift();
     const m = median(hist), note = Math.round(m), cents = Math.round((m - note) * 100);
     trace.push([now, cents]);
-    if (now - lastShown > 60) { show({ note, cents }); lastShown = now; }
+    track({ note, cents }, now);
+    if (now - lastShown > 60) { show({ note, cents }); renderTarget({ note, cents }); lastShown = now; }
   } else {
     hist = [];
+    track(null, now);
     if (now - lastShown > 600) show(null, true);
   }
   trace = trace.filter(p => now - p[0] < 8000);
@@ -196,6 +238,7 @@ function show(r, keepTrace) {
     $("needle").className = "needle"; $("needle").style.left = "calc(50% - 3px)";
     if (!keepTrace) { trace = []; drawTrace(performance.now()); }
     if (analyser) $("posText").textContent = "Speel een lange toon";
+    renderTarget(null);
     return;
   }
   card.classList.remove("idle");
@@ -229,12 +272,194 @@ function drawTrace(now) {
 }
 function setA4(v) { A4 = Math.max(430, Math.min(450, v)); $("calText").textContent = A4; try { localStorage.setItem("a4", A4); } catch (e) {} }
 
+/* ===== KOPPELING MET DE APP =====
+   De app opent deze pagina met ?t=titel&n=noten&w=week (een stuk om mee te volgen)
+   of ?doel=G4 (alleen een doelnoot). Notenformaat: G4h@1, F#4q@2, Rq, | = maatstreep. */
+const NOTE_RX = /^(\()?([A-G])(#|b)?(\d)(w|hd|h|qd|q|8)(?:@(\d))?(\))?$/;
+const REST_RX = /^R(w|h|q|8)$/;
+const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const params = new URLSearchParams(location.search);
+const tk = { titel: "", n: "", maat: "4/4", seq: [], idx: 0, hits: [], holdStart: 0, holdCents: [], needRelease: false, lastHit: null, gapStart: 0, doel: null };
+
+function tokMidi(L, acc, oct) { return (+oct + 1) * 12 + PC[L] + (acc === "#" ? 1 : acc === "b" ? -1 : 0); }
+function nameOf(m) { return NAMES[((m % 12) + 12) % 12]; }
+function setupFromParams() {
+  const n = (params.get("n") || "").slice(0, 2000), doel = params.get("doel");
+  tk.titel = (params.get("t") || "").slice(0, 80);
+  tk.maat = /^\d\/\d$/.test(params.get("maat") || "") ? params.get("maat") : "4/4";
+  if (n) {
+    const toks = n.split(/[\s|]+/).filter(Boolean);
+    if (!toks.every(t => NOTE_RX.test(t) || REST_RX.test(t))) return;
+    tk.n = n;
+    toks.forEach(t => { const m = NOTE_RX.exec(t); if (m) tk.seq.push({ midi: tokMidi(m[2], m[3], m[4]), pos: m[6] ? +m[6] : null }); });
+    $("pieceCard").hidden = false;
+    $("pieceTitle").textContent = tk.titel || "Oefening";
+    const w = parseInt(params.get("w"), 10);
+    $("pieceEyebrow").textContent = w ? "Week " + w + " · uit je app" : "Uit je app";
+    document.title = (tk.titel || "Oefening") + " · Trombone Tuner";
+  } else if (doel) {
+    const m = /^([A-G])(#|b)?(\d)$/.exec(doel);
+    if (m) tk.doel = tokMidi(m[1], m[2], m[3]);
+  }
+  renderPiece(); renderTarget(null);
+}
+function currentTarget() { return tk.seq.length ? (tk.idx < tk.seq.length ? tk.seq[tk.idx].midi : null) : tk.doel; }
+
+function track(r, now) {
+  if (!tk.seq.length || tk.idx >= tk.seq.length) return;
+  if (!r) { if (!tk.gapStart) tk.gapStart = now; if (now - tk.gapStart > 60) tk.needRelease = false; tk.holdStart = 0; tk.holdCents = []; return; }
+  tk.gapStart = 0;
+  const written = r.note + 14;
+  if (written !== tk.lastHit) tk.needRelease = false;
+  if (tk.needRelease || written !== tk.seq[tk.idx].midi) { tk.holdStart = 0; tk.holdCents = []; return; }
+  if (!tk.holdStart) tk.holdStart = now;
+  tk.holdCents.push(r.cents);
+  if (now - tk.holdStart >= 200) {
+    tk.hits.push(median(tk.holdCents));
+    tk.idx++; tk.needRelease = true; tk.lastHit = written; tk.holdStart = 0; tk.holdCents = [];
+    renderPiece();
+  }
+}
+function renderTarget(r) {
+  const t = currentTarget(), el = $("targetLine");
+  if (t === null) { el.hidden = true; return; }
+  el.hidden = false; el.innerHTML = "";
+  const tg = document.createElement("span"); tg.className = "tg";
+  const pos = positionsFor(t - 14);
+  tg.textContent = "Doel: " + nameOf(t) + (Math.floor(t / 12) - 1) + (pos.length ? " · " + pos[0] + "e pos." : "");
+  el.append(tg);
+  if (r) {
+    const w = r.note + 14, s = document.createElement("span");
+    if (w === t) { s.className = cls(r.cents) === "good" ? "ok" : "dir"; s.textContent = cls(r.cents) === "good" ? "✓ Raak" : "Goede noot, nog niet zuiver"; }
+    else { s.className = "dir"; s.textContent = w < t ? "Hoger" : "Lager"; }
+    el.append(s);
+  }
+}
+
+function renderPiece() {
+  if (!tk.seq.length) return;
+  const done = tk.idx >= tk.seq.length;
+  $("pieceProgress").textContent = Math.min(tk.idx, tk.seq.length) + " / " + tk.seq.length;
+  drawPiece();
+  const sum = $("pieceSummary");
+  sum.hidden = !done; $("pieceHelp").hidden = done;
+  if (done) {
+    const avg = Math.round(tk.hits.reduce((a, b) => a + b, 0) / tk.hits.length);
+    const good = tk.hits.filter(c => Math.abs(c) <= 10).length;
+    const byNote = {};
+    tk.seq.forEach((s, i) => { (byNote[s.midi] = byNote[s.midi] || []).push(tk.hits[i]); });
+    sum.innerHTML = "";
+    const h = document.createElement("b");
+    h.textContent = "Klaar: " + good + " van " + tk.seq.length + " noten binnen 10 cent, gemiddeld " + (avg > 0 ? "+" : "") + avg + " cent.";
+    const chips = document.createElement("div"); chips.className = "chips";
+    Object.keys(byNote).map(Number).sort((a, b) => a - b).forEach(m => {
+      const c = Math.round(byNote[m].reduce((a, b) => a + b, 0) / byNote[m].length);
+      const ch = document.createElement("span"); ch.className = "chip " + cls(c);
+      const b = document.createElement("b"); b.textContent = nameOf(m); const em = document.createElement("em"); em.textContent = (c > 0 ? "+" : "") + c;
+      ch.append(b, em); chips.append(ch);
+    });
+    sum.append(h, chips);
+  }
+}
+function drawPiece() {
+  const host = $("pieceScore"); host.innerHTML = "";
+  const VF = window.Vex && (window.Vex.Flow || window.Vex);
+  if (!VF || !VF.Renderer) { host.textContent = tk.seq.map((s, i) => (i === tk.idx ? "[" : "") + nameOf(s.midi) + (i === tk.idx ? "]" : "")).join(" "); return; }
+  const cs = getComputedStyle(document.documentElement), tok = n => cs.getPropertyValue(n).trim();
+  const ink = tok("--ink"), col = { good: tok("--ok"), mid: tok("--warn"), off: tok("--bad") }, cur = tok("--brass");
+  const measures = tk.n.split("|").map(m => m.trim().split(/\s+/).filter(Boolean));
+  const W = Math.max(300, Math.floor(host.clientWidth || 340)), per = W < 440 ? 2 : W < 720 ? 3 : 4;
+  const lines = []; for (let i = 0; i < measures.length; i += per) lines.push(measures.slice(i, i + per));
+  const lineH = 118;
+  const renderer = new VF.Renderer(host, VF.Renderer.Backends.SVG); renderer.resize(W, lines.length * lineH + 6);
+  const ctx = renderer.getContext(); ctx.setFillStyle(ink); ctx.setStrokeStyle(ink);
+  let ni = 0, curEl = null;
+  lines.forEach((line, li) => {
+    const extra = 40 + (li === 0 ? 26 : 0), base = (W - 2 - extra) / per; let x = 0;
+    line.forEach((toks, mi) => {
+      const w = base + (mi === 0 ? extra : 0), stave = new VF.Stave(x, li * lineH, w);
+      if (mi === 0) stave.addClef("treble");
+      if (li === 0 && mi === 0) stave.addTimeSignature(tk.maat);
+      stave.setContext(ctx).draw();
+      const notes = toks.map(t => {
+        const r = REST_RX.exec(t);
+        if (r) return new VF.StaveNote({ keys: ["b/4"], duration: r[1] + "r" });
+        const m = NOTE_RX.exec(t), dur = m[5];
+        const note = new VF.StaveNote({ keys: [m[2].toLowerCase() + (m[3] || "") + "/" + m[4]], duration: dur, auto_stem: true });
+        if (m[3]) note.addModifier(new VF.Accidental(m[3]), 0);
+        if (dur.endsWith("d")) { if (VF.Dot && VF.Dot.buildAndAttach) VF.Dot.buildAndAttach([note], { all: true }); else if (note.addDotToAll) note.addDotToAll(); }
+        if (m[6]) { const a = new VF.Annotation(m[6]); a.setVerticalJustification(VF.Annotation.VerticalJustify.BOTTOM); note.addModifier(a, 0); }
+        const i = ni++;
+        const c = i < tk.idx ? col[cls(tk.hits[i])] : i === tk.idx ? cur : null;
+        if (c) note.setStyle({ fillStyle: c, strokeStyle: c });
+        if (i === tk.idx) note._isCurrent = true;
+        return note;
+      });
+      const voice = new VF.Voice({ num_beats: +tk.maat[0] || 4, beat_value: +tk.maat[2] || 4 });
+      if (voice.setStrict) voice.setStrict(false); else if (voice.setMode) voice.setMode(VF.Voice.Mode.SOFT);
+      voice.addTickables(notes);
+      const beams = VF.Beam && VF.Beam.generateBeams ? VF.Beam.generateBeams(notes) : [];
+      new VF.Formatter().joinVoices([voice]).format([voice], Math.max(40, stave.getNoteEndX() - stave.getNoteStartX() - 10));
+      voice.draw(ctx, stave); beams.forEach(b => b.setContext(ctx).draw());
+      notes.forEach(n => { if (n._isCurrent && n.getAttribute) curEl = n.getAttribute("el"); });
+      x += w;
+    });
+  });
+  const svg = host.querySelector("svg");
+  if (svg) svg.querySelectorAll("[fill],[stroke]").forEach(el => ["fill", "stroke"].forEach(a => { const v = (el.getAttribute(a) || "").toLowerCase(); if (v === "black" || v === "#000" || v === "#000000") el.setAttribute(a, ink); }));
+  if (curEl && curEl.scrollIntoView) { try { curEl.scrollIntoView({ block: "nearest", inline: "center" }); } catch (e) {} }
+}
+$("pieceReset").onclick = () => { tk.idx = 0; tk.hits = []; tk.needRelease = false; tk.lastHit = null; renderPiece(); };
+let resizeT = null;
+addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(drawPiece, 200); });
+
+/* ===== OPNEMEN ===== */
+let rec = null, recChunks = [], recBlob = null, recStart = 0, recTimer = null;
+function recMime() { return ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"].find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || ""; }
+function startRec() {
+  if (!stream) return;
+  const mime = recMime();
+  try { rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined); } catch (e) { $("recStatus").textContent = "Opnemen wordt niet ondersteund in deze browser."; return; }
+  recChunks = []; recBlob = null;
+  rec.ondataavailable = e => { if (e.data.size) recChunks.push(e.data); };
+  rec.onstop = () => {
+    clearInterval(recTimer); $("recState").hidden = true;
+    recBlob = new Blob(recChunks, { type: (rec.mimeType || mime || "audio/mp4").split(";")[0] });
+    const a = $("recAudio"); a.src = URL.createObjectURL(recBlob); a.hidden = false;
+    $("saveBtn").hidden = false; $("discardBtn").hidden = false; $("recBtn").textContent = "Start opname";
+    $("recStatus").textContent = "Luister terug en bewaar de opname als je tevreden bent.";
+  };
+  rec.start(500); recStart = performance.now();
+  $("recState").hidden = false; $("recBtn").textContent = "Stop opname"; $("recStatus").textContent = "";
+  $("saveBtn").hidden = true; $("discardBtn").hidden = true; $("recAudio").hidden = true;
+  recTimer = setInterval(() => { const s = Math.floor((performance.now() - recStart) / 1000); $("recTime").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); if (s >= 300) rec.stop(); }, 250);
+}
+function recFileName() {
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  const ext = recBlob.type.includes("webm") ? "webm" : "m4a";
+  const slug = (tk.titel || "oefening").toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || "oefening";
+  return "trombone-" + d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "-" + slug + "." + ext;
+}
+async function saveRec() {
+  if (!recBlob) return;
+  const name = recFileName(), file = new File([recBlob], name, { type: recBlob.type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); $("recStatus").textContent = "Kies ‘Bewaar in Bestanden’. Open daarna je app en voeg de opname toe bij Opnames."; return; }
+    catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(recBlob); a.download = name; document.body.append(a); a.click(); a.remove();
+  $("recStatus").textContent = "Bewaard als " + name + " in je downloads. Open je app en voeg de opname toe bij Opnames.";
+}
+$("recBtn").onclick = () => { if (rec && rec.state === "recording") rec.stop(); else startRec(); };
+$("saveBtn").onclick = saveRec;
+$("discardBtn").onclick = () => { recBlob = null; $("recAudio").hidden = true; $("saveBtn").hidden = true; $("discardBtn").hidden = true; $("recStatus").textContent = "Opname weggegooid."; };
+
 $("startBtn").onclick = () => analyser ? stop() : start();
 $("calDown").onclick = () => setA4(A4 - 1);
 $("calUp").onclick = () => setA4(A4 + 1);
 document.addEventListener("visibilitychange", async () => { if (document.visibilityState === "visible" && analyser) { try { wake = await navigator.wakeLock?.request("screen"); } catch (e) {} } });
 addEventListener("resize", () => drawTrace(performance.now()));
-setA4(A4); drawTrace(performance.now());
+setA4(A4); drawTrace(performance.now()); setupFromParams();
 if (!navigator.mediaDevices?.getUserMedia) { $("startBtn").disabled = true; $("errText").textContent = "Deze browser ondersteunt geen microfoon. Open de pagina in Safari of Chrome."; }
 </script>
 </body>
